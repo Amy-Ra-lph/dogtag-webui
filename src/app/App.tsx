@@ -19,14 +19,20 @@ import {
   ToolbarItem,
   Content,
 } from "@patternfly/react-core";
+import { Label } from "@patternfly/react-core";
 // Icons
-import { KeyIcon } from "@patternfly/react-icons";
+import { KeyIcon, UserIcon } from "@patternfly/react-icons";
 // Navigation
 import Navigation from "src/navigation/Navigation";
 import AppRoutes from "src/navigation/AppRoutes";
+import { useGetAccountInfoQuery } from "src/services/dogtagApi";
 
 const App: React.FC = () => {
   const pageId = "primary-app-container";
+  const { data: account } = useGetAccountInfoQuery();
+
+  const isAgent = account?.Roles?.includes("Certificate Manager Agents");
+  const isAdmin = account?.Roles?.includes("Administrators");
 
   const skipToContent = (event: React.MouseEvent) => {
     event.preventDefault();
@@ -42,7 +48,6 @@ const App: React.FC = () => {
     </SkipToContent>
   );
 
-  // Header toolbar (placeholder for future user menu / logout)
   const headerToolbar = (
     <Toolbar id="toolbar" isStatic>
       <ToolbarContent>
@@ -51,9 +56,30 @@ const App: React.FC = () => {
           align={{ default: "alignEnd" }}
           gap={{ default: "gapNone", md: "gapMd" }}
         >
-          <ToolbarItem>
-            <Content component="small">Dogtag Certificate System</Content>
-          </ToolbarItem>
+          {account && (
+            <>
+              <ToolbarItem>
+                <UserIcon className="pf-v6-u-mr-xs" />
+                <Content component="small" className="pf-v6-u-display-inline">
+                  {account.FullName}
+                </Content>
+              </ToolbarItem>
+              {isAdmin && (
+                <ToolbarItem>
+                  <Label color="purple" isCompact>
+                    Admin
+                  </Label>
+                </ToolbarItem>
+              )}
+              {isAgent && (
+                <ToolbarItem>
+                  <Label color="blue" isCompact>
+                    Agent
+                  </Label>
+                </ToolbarItem>
+              )}
+            </>
+          )}
         </ToolbarGroup>
       </ToolbarContent>
     </Toolbar>

@@ -4,6 +4,13 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 // Dogtag PKI REST API types
 // -----------------------------------------------------------------
 
+export interface AccountInfo {
+  id: string;
+  FullName: string;
+  Email: string;
+  Roles: string[];
+}
+
 export interface CertInfo {
   id: string;
   SubjectDN: string;
@@ -19,6 +26,19 @@ export interface CertInfo {
   IssuedBy: string;
   PKCS7CertChain?: string;
   Link?: HateoasLink;
+}
+
+export interface CertDetail extends CertInfo {
+  PrettyPrint?: string;
+  Encoded?: string;
+  NotBefore?: string;
+  NotAfter?: string;
+  Nonce?: number;
+}
+
+export interface CertRevokeRequest {
+  Reason: string;
+  Nonce: number;
 }
 
 export interface CertRequestInfo {
@@ -297,6 +317,25 @@ export const dogtagApi = createApi({
       query: (id) => `certs/${id}`,
       providesTags: (_result, _error, id) => [{ type: "Certificates", id }],
     }),
+    getAgentCert: build.query<CertDetail, string>({
+      query: (id) => `agent/certs/${id}`,
+    }),
+    revokeCert: build.mutation<
+      void,
+      { certId: string; body: CertRevokeRequest }
+    >({
+      query: ({ certId, body }) => ({
+        url: `agent/certs/${certId}/revoke`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Certificates"],
+    }),
+
+    // ---- Account ----
+    getAccountInfo: build.query<AccountInfo, void>({
+      query: () => "account/login",
+    }),
 
     // ---- Certificate Requests (agent endpoint) ----
     getCertRequests: build.query<
@@ -433,6 +472,9 @@ export const dogtagApi = createApi({
 export const {
   useGetCertificatesQuery,
   useGetCertificateQuery,
+  useGetAgentCertQuery,
+  useRevokeCertMutation,
+  useGetAccountInfoQuery,
   useGetCertRequestsQuery,
   useGetRequestReviewQuery,
   useApproveRequestMutation,
