@@ -5,8 +5,10 @@ import {
   Content,
   Spinner,
   Bullseye,
+  Button,
 } from "@patternfly/react-core";
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
+import { useNavigate } from "react-router";
 import BreadcrumbLayout from "src/components/BreadcrumbLayout";
 import { useGetCertificatesQuery } from "src/services/dogtagApi";
 import StatusLabel from "src/components/StatusLabel";
@@ -25,6 +27,7 @@ const Certificates: React.FC = () => {
     document.title = "Dogtag PKI - Certificates";
   }, []);
 
+  const navigate = useNavigate();
   const { data, isLoading, error } = useGetCertificatesQuery();
   const certs = data?.entries ?? [];
 
@@ -52,12 +55,13 @@ const Certificates: React.FC = () => {
                 <Th>Not Valid Before</Th>
                 <Th>Not Valid After</Th>
                 <Th>Issued By</Th>
+                <Th />
               </Tr>
             </Thead>
             <Tbody>
               {certs.length === 0 ? (
                 <Tr>
-                  <Td colSpan={6}>
+                  <Td colSpan={7}>
                     <Content component="small">No certificates found.</Content>
                   </Td>
                 </Tr>
@@ -72,6 +76,19 @@ const Certificates: React.FC = () => {
                     <Td>{formatDate(cert.NotValidBefore)}</Td>
                     <Td>{formatDate(cert.NotValidAfter)}</Td>
                     <Td>{cert.IssuedBy}</Td>
+                    <Td>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() =>
+                          navigate(
+                            `/certificates/${encodeURIComponent(cert.id)}`,
+                          )
+                        }
+                      >
+                        View
+                      </Button>
+                    </Td>
                   </Tr>
                 ))
               )}

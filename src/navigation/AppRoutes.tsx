@@ -2,6 +2,7 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router";
 // Pages
 import Certificates from "src/pages/Certificates";
+import CertificateDetail from "src/pages/CertificateDetail";
 import Enroll from "src/pages/Enroll";
 import Requests from "src/pages/Requests";
 import Profiles from "src/pages/Profiles";
@@ -17,6 +18,7 @@ const AppRoutes: React.FC = () => {
     <Routes>
       <Route path="/" element={<Navigate to="/certificates" replace />} />
       <Route path="/certificates" element={<Certificates />} />
+      <Route path="/certificates/:certId" element={<CertificateDetail />} />
       <Route path="/enroll" element={<Enroll />} />
       <Route path="/requests" element={<Requests />} />
       <Route path="/profiles" element={<Profiles />} />
