@@ -21,6 +21,8 @@ function buildAuthBackend(env: Record<string, string>): AuthBackend | undefined 
     userSearchBase: env.VITE_LDAP_USER_SEARCH_BASE,
     groupSearchBase: env.VITE_LDAP_GROUP_SEARCH_BASE,
     tlsRejectUnauthorized: env.VITE_LDAP_TLS_REJECT_UNAUTHORIZED !== "false",
+    tlsCaCertPath: env.VITE_LDAP_TLS_CA_CERT,
+    startTls: env.VITE_LDAP_STARTTLS === "true",
   });
 }
 

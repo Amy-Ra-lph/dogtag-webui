@@ -1,4 +1,6 @@
 import { Client } from "ldapts";
+import fs from "node:fs";
+import type { TlsOptions } from "node:tls";
 import type { AuthBackend } from "./authMiddleware";
 
 export interface LdapConfig {
@@ -9,6 +11,8 @@ export interface LdapConfig {
   userSearchBase?: string;
   groupSearchBase?: string;
   tlsRejectUnauthorized?: boolean;
+  tlsCaCertPath?: string;
+  startTls?: boolean;
 }
 
 const DOGTAG_GROUP_ROLE_MAP: Record<string, string> = {
@@ -22,21 +26,35 @@ const DOGTAG_GROUP_ROLE_MAP: Record<string, string> = {
   "Enterprise TPS Administrators": "administrator",
 };
 
+function buildTlsOptions(config: LdapConfig): TlsOptions {
+  const opts: TlsOptions = {
+    rejectUnauthorized: config.tlsRejectUnauthorized ?? true,
+  };
+  if (config.tlsCaCertPath) {
+    opts.ca = fs.readFileSync(config.tlsCaCertPath);
+  }
+  return opts;
+}
+
 export function createLdapBackend(config: LdapConfig): AuthBackend {
   const userSearchBase = config.userSearchBase ?? `ou=people,${config.baseDn}`;
   const groupSearchBase =
     config.groupSearchBase ?? `ou=groups,${config.baseDn}`;
+  const tlsOptions = buildTlsOptions(config);
 
   return {
     async validate(username, password) {
       const client = new Client({
         url: config.url,
-        tlsOptions: {
-          rejectUnauthorized: config.tlsRejectUnauthorized ?? true,
-        },
+        tlsOptions,
+        strictDN: true,
       });
 
       try {
+        if (config.startTls) {
+          await client.startTLS(tlsOptions);
+        }
+
         // Step 1: Find the user's DN
         let userDn: string;
         let fullName = username;
@@ -63,12 +81,14 @@ export function createLdapBackend(config: LdapConfig): AuthBackend {
         await client.unbind();
         const userClient = new Client({
           url: config.url,
-          tlsOptions: {
-            rejectUnauthorized: config.tlsRejectUnauthorized ?? true,
-          },
+          tlsOptions,
+          strictDN: true,
         });
 
         try {
+          if (config.startTls) {
+            await userClient.startTLS(tlsOptions);
+          }
           await userClient.bind(userDn, password);
         } catch {
           return null;

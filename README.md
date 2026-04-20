@@ -120,10 +120,20 @@ Full provisioning playbooks for 389 DS + Dogtag CA and the WebUI container are i
 | `VITE_LDAP_USER_SEARCH_BASE` | `ou=people,{baseDn}` | Base DN for user lookups |
 | `VITE_LDAP_GROUP_SEARCH_BASE` | `ou=groups,{baseDn}` | Base DN for group lookups |
 | `VITE_LDAP_TLS_REJECT_UNAUTHORIZED` | `true` | Set `false` for self-signed DS certs |
+| `VITE_LDAP_TLS_CA_CERT` | *(optional)* | Path to CA cert for verifying DS server cert |
+| `VITE_LDAP_STARTTLS` | `false` | Use STARTTLS on plain LDAP port (389) |
 
 ### LDAP Authentication
 
-When `VITE_LDAP_URL` is set, the WebUI authenticates users against 389 Directory Server instead of the built-in demo accounts. The backend:
+When `VITE_LDAP_URL` is set, the WebUI authenticates users against 389 Directory Server instead of the built-in demo accounts. Three connection modes are supported:
+
+| Mode | URL | Extra Config |
+|------|-----|-------------|
+| Plain LDAP | `ldap://host:389` | *(not recommended for production)* |
+| LDAPS | `ldaps://host:636` | Set `VITE_LDAP_TLS_CA_CERT` if DS uses internal CA |
+| STARTTLS | `ldap://host:389` | Set `VITE_LDAP_STARTTLS=true` |
+
+The backend:
 
 1. Searches `ou=people` for the user's DN by `uid`
 2. Binds as the user to verify the password
