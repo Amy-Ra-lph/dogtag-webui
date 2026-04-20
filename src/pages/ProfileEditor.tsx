@@ -30,28 +30,23 @@ import {
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 import BreadcrumbLayout from "src/components/BreadcrumbLayout";
 import {
+  useGetProfilesQuery,
   useGetProfileDetailQuery,
   useCreateProfileMutation,
+  extractApiError,
   type ProfileDetail,
   type ProfilePolicy,
 } from "src/services/dogtagApi";
-
-const SOURCE_PROFILES = [
-  { id: "caUserCert", label: "User Certificate" },
-  { id: "caServerCert", label: "Server Certificate" },
-  { id: "caCACert", label: "Sub-CA Certificate" },
-  { id: "caECUserCert", label: "EC User Certificate" },
-  { id: "caECServerCert", label: "EC Server Certificate" },
-  { id: "caSignedLogCert", label: "Signed Log Certificate" },
-  { id: "caUserSMIMEcapCert", label: "User S/MIME Certificate" },
-  { id: "caAdminCert", label: "Admin Certificate" },
-];
 
 const ProfileEditor: React.FC = () => {
   React.useEffect(() => {
     document.title = "Dogtag PKI - Profile Editor";
   }, []);
 
+  const { data: profileList } = useGetProfilesQuery();
+  const sourceProfiles = (profileList?.entries ?? []).filter(
+    (p) => String(p.enabled ?? p.profileEnabled ?? false) === "true",
+  );
   const [sourceId, setSourceId] = React.useState("caServerCert");
   const [newId, setNewId] = React.useState("");
   const [newName, setNewName] = React.useState("");
@@ -175,11 +170,10 @@ const ProfileEditor: React.FC = () => {
         message: `Profile "${profile.id}" created successfully. Enable it from the Profiles page to start using it.`,
       });
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "data" in err
-          ? JSON.stringify((err as { data: unknown }).data)
-          : "Failed to create profile.";
-      setResult({ success: false, message: msg });
+      setResult({
+        success: false,
+        message: extractApiError(err, "Failed to create profile."),
+      });
     }
   };
 
@@ -225,13 +219,17 @@ const ProfileEditor: React.FC = () => {
                     value={sourceId}
                     onChange={(_e, val) => setSourceId(val)}
                   >
-                    {SOURCE_PROFILES.map((p) => (
-                      <FormSelectOption
-                        key={p.id}
-                        value={p.id}
-                        label={`${p.label} (${p.id})`}
-                      />
-                    ))}
+                    {sourceProfiles.map((p) => {
+                      const id = p.id || p.profileId || "";
+                      const name = p.name || p.profileName || id;
+                      return (
+                        <FormSelectOption
+                          key={id}
+                          value={id}
+                          label={`${name} (${id})`}
+                        />
+                      );
+                    })}
                   </FormSelect>
                 </FormGroup>
               </CardBody>

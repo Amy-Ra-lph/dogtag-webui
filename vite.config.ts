@@ -1,53 +1,85 @@
 import { defineConfig } from "vitest/config";
+import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import fs from "fs";
 import path from "path";
 import https from "https";
+import type { IncomingMessage } from "http";
 
-const certPath = path.resolve(__dirname, "certs/admin.cert");
-const keyPath = path.resolve(__dirname, "certs/admin.key");
-
-const hasCerts = fs.existsSync(certPath) && fs.existsSync(keyPath);
-
-const agent = hasCerts
-  ? new https.Agent({
-      cert: fs.readFileSync(certPath),
-      key: fs.readFileSync(keyPath),
-      rejectUnauthorized: false,
-    })
-  : undefined;
+// Dev-only: strip Secure flag so HTTP dev server can use session cookies.
+function stripSecureFromCookies(proxyRes: IncomingMessage) {
+  const sc = proxyRes.headers["set-cookie"];
+  if (sc) {
+    proxyRes.headers["set-cookie"] = sc.map((c) =>
+      c.replace(/;\s*Secure/gi, ""),
+    );
+  }
+}
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: "/",
-  build: {
-    sourcemap: true,
-  },
-  plugins: [react()],
-  resolve: {
-    alias: {
-      src: "/src",
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "VITE_");
+  const isProd = mode === "production";
+
+  const proxyTarget = env.VITE_CA_TARGET_URL || "https://localhost:8443";
+
+  const certPath = path.resolve(
+    __dirname,
+    env.VITE_CA_CERT_PATH || "certs/admin.cert",
+  );
+  const keyPath = path.resolve(
+    __dirname,
+    env.VITE_CA_KEY_PATH || "certs/admin.key",
+  );
+
+  const hasCerts = fs.existsSync(certPath) && fs.existsSync(keyPath);
+
+  const agent = hasCerts
+    ? new https.Agent({
+        cert: fs.readFileSync(certPath),
+        key: fs.readFileSync(keyPath),
+        rejectUnauthorized: isProd,
+      })
+    : undefined;
+
+  return {
+    base: "/",
+    build: {
+      sourcemap: !isProd,
     },
-  },
-  server: {
-    host: "0.0.0.0",
-    port: 5173,
-    proxy: {
-      "/ca/rest": {
-        target: "https://192.168.140.101:8443",
-        changeOrigin: true,
-        secure: false,
-        agent,
+    plugins: [react()],
+    resolve: {
+      alias: {
+        src: "/src",
       },
     },
-  },
-  test: {
-    environment: "jsdom",
     server: {
-      deps: {
-        inline: [/@patternfly\/.*/],
+      host: env.VITE_DEV_HOST || "localhost",
+      port: 5173,
+      proxy: {
+        "/ca/rest": {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: isProd,
+          agent,
+          cookieDomainRewrite: "",
+          cookiePathRewrite: "/",
+          configure: (proxy) => {
+            if (!isProd) {
+              proxy.on("proxyRes", stripSecureFromCookies);
+            }
+          },
+        },
       },
     },
-    setupFiles: ["./src/setupTests.ts"],
-  },
+    test: {
+      environment: "jsdom",
+      server: {
+        deps: {
+          inline: [/@patternfly\/.*/],
+        },
+      },
+      setupFiles: ["./src/setupTests.ts"],
+    },
+  };
 });

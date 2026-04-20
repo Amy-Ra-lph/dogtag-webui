@@ -235,16 +235,43 @@ export interface CertReviewResponse {
 // RTK Query API definition
 // -----------------------------------------------------------------
 
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: "/ca/rest/",
+  credentials: "include",
+  timeout: 30_000,
+  prepareHeaders: (headers) => {
+    headers.set("Accept", "application/json");
+    headers.set("Content-Type", "application/json");
+    return headers;
+  },
+});
+
+let sessionEstablished = false;
+
+const baseQueryWithSession: typeof rawBaseQuery = async (
+  args,
+  api,
+  extraOptions,
+) => {
+  if (!sessionEstablished) {
+    await rawBaseQuery("account/login", api, extraOptions);
+    sessionEstablished = true;
+  }
+  const result = await rawBaseQuery(args, api, extraOptions);
+
+  if (result.error && result.error.status === 401) {
+    sessionEstablished = false;
+    await rawBaseQuery("account/login", api, extraOptions);
+    sessionEstablished = true;
+    return rawBaseQuery(args, api, extraOptions);
+  }
+
+  return result;
+};
+
 export const dogtagApi = createApi({
   reducerPath: "dogtagApi",
-  baseQuery: fetchBaseQuery({
-    baseUrl: "/ca/rest/",
-    prepareHeaders: (headers) => {
-      headers.set("Accept", "application/json");
-      headers.set("Content-Type", "application/json");
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithSession,
   tagTypes: [
     "Certificates",
     "CertRequests",
@@ -425,3 +452,13 @@ export const {
   useGetAuditConfigQuery,
   useGetAuthoritiesQuery,
 } = dogtagApi;
+
+export function extractApiError(err: unknown, fallback: string): string {
+  if (err && typeof err === "object" && "data" in err) {
+    const data = (err as { data: unknown }).data;
+    if (data && typeof data === "object" && "Message" in data) {
+      return String((data as { Message: string }).Message);
+    }
+  }
+  return fallback;
+}
