@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import https from "https";
 import type { IncomingMessage } from "http";
+import { authPlugin } from "./server/authMiddleware";
 
 // Dev-only: strip Secure flag so HTTP dev server can use session cookies.
 function stripSecureFromCookies(proxyRes: IncomingMessage) {
@@ -47,7 +48,7 @@ export default defineConfig(({ mode }) => {
     build: {
       sourcemap: !isProd,
     },
-    plugins: [react()],
+    plugins: [react(), authPlugin()],
     resolve: {
       alias: {
         src: "/src",

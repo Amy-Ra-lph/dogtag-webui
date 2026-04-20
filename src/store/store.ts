@@ -1,11 +1,13 @@
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 import { dogtagApi } from "../services/dogtagApi";
+import authReducer from "./authSlice";
 
 export const setupStore = () => {
   const store = configureStore({
     reducer: {
+      auth: authReducer,
       [dogtagApi.reducerPath]: dogtagApi.reducer,
     },
     // Adding the api middleware enables caching, invalidation, polling,
@@ -31,4 +33,5 @@ const store = setupStore();
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
+export const useAppSelector = useSelector.withTypes<RootState>();
 export default store;

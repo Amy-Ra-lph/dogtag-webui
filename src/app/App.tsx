@@ -1,5 +1,4 @@
 import React from "react";
-// PatternFly
 import "@patternfly/react-core/dist/styles/base.css";
 import {
   Masthead,
@@ -18,28 +17,35 @@ import {
   ToolbarGroup,
   ToolbarItem,
   Content,
+  Button,
+  Label,
 } from "@patternfly/react-core";
-import { Label } from "@patternfly/react-core";
-// Icons
 import { KeyIcon, UserIcon } from "@patternfly/react-icons";
-// Navigation
+import { useLocation } from "react-router";
 import Navigation from "src/navigation/Navigation";
 import AppRoutes from "src/navigation/AppRoutes";
-import { useGetAccountInfoQuery } from "src/services/dogtagApi";
+import { useAppSelector, useAppDispatch } from "src/store/store";
+import { checkSession, logoutUser } from "src/store/authSlice";
+import { hasRole, ROLE_ADMIN, ROLE_AGENT, ROLE_AUDITOR } from "src/auth/roles";
 
 const App: React.FC = () => {
   const pageId = "primary-app-container";
-  const { data: account } = useGetAccountInfoQuery();
+  const dispatch = useAppDispatch();
+  const { user, checked } = useAppSelector((s) => s.auth);
+  const location = useLocation();
+  const isLoginPage = location.pathname === "/login";
 
-  const isAgent = account?.Roles?.includes("Certificate Manager Agents");
-  const isAdmin = account?.Roles?.includes("Administrators");
+  React.useEffect(() => {
+    dispatch(checkSession());
+  }, [dispatch]);
+
+  const handleLogout = () => {
+    dispatch(logoutUser());
+  };
 
   const skipToContent = (event: React.MouseEvent) => {
     event.preventDefault();
-    const primaryContentContainer = document.getElementById(pageId);
-    if (primaryContentContainer) {
-      primaryContentContainer.focus();
-    }
+    document.getElementById(pageId)?.focus();
   };
 
   const PageSkipToContent = (
@@ -56,28 +62,40 @@ const App: React.FC = () => {
           align={{ default: "alignEnd" }}
           gap={{ default: "gapNone", md: "gapMd" }}
         >
-          {account && (
+          {user && (
             <>
               <ToolbarItem>
                 <UserIcon className="pf-v6-u-mr-xs" />
                 <Content component="small" className="pf-v6-u-display-inline">
-                  {account.FullName}
+                  {user.fullName}
                 </Content>
               </ToolbarItem>
-              {isAdmin && (
+              {hasRole(user, ROLE_ADMIN) && (
                 <ToolbarItem>
                   <Label color="purple" isCompact>
                     Admin
                   </Label>
                 </ToolbarItem>
               )}
-              {isAgent && (
+              {hasRole(user, ROLE_AGENT) && (
                 <ToolbarItem>
                   <Label color="blue" isCompact>
                     Agent
                   </Label>
                 </ToolbarItem>
               )}
+              {hasRole(user, ROLE_AUDITOR) && (
+                <ToolbarItem>
+                  <Label color="teal" isCompact>
+                    Auditor
+                  </Label>
+                </ToolbarItem>
+              )}
+              <ToolbarItem>
+                <Button variant="link" onClick={handleLogout}>
+                  Log out
+                </Button>
+              </ToolbarItem>
             </>
           )}
         </ToolbarGroup>
@@ -120,8 +138,8 @@ const App: React.FC = () => {
     <Page
       mainContainerId={pageId}
       masthead={Header}
-      sidebar={Sidebar}
-      isManagedSidebar={true}
+      sidebar={isLoginPage ? undefined : Sidebar}
+      isManagedSidebar={!isLoginPage}
       skipToContent={PageSkipToContent}
       isContentFilled
     >

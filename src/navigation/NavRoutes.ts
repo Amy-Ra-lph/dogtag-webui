@@ -1,10 +1,11 @@
-// Navigation route definitions for the Dogtag PKI WebUI sidebar.
+import { ROLE_ADMIN, ROLE_AGENT, ROLE_AUDITOR } from "src/auth/roles";
 
 export interface NavRouteItem {
   label: string;
   group: string;
   path: string;
   title: string;
+  requiredRoles?: string[];
 }
 
 export interface NavSection {
@@ -40,24 +41,28 @@ export const navigationRoutes: NavSection[] = [
         group: "enroll",
         path: "/enroll",
         title: `${BASE_TITLE} - Enroll Certificate`,
+        requiredRoles: [ROLE_ADMIN, ROLE_AGENT],
       },
       {
         label: "Requests",
         group: "requests",
         path: "/requests",
         title: `${BASE_TITLE} - Requests`,
+        requiredRoles: [ROLE_ADMIN, ROLE_AGENT],
       },
       {
         label: "Profiles",
         group: "profiles",
         path: "/profiles",
         title: `${BASE_TITLE} - Profiles`,
+        requiredRoles: [ROLE_ADMIN, ROLE_AGENT],
       },
       {
         label: "Create Profile",
         group: "profile-create",
         path: "/profiles/create",
         title: `${BASE_TITLE} - Create Profile`,
+        requiredRoles: [ROLE_ADMIN],
       },
       {
         label: "Authorities",
@@ -75,12 +80,14 @@ export const navigationRoutes: NavSection[] = [
         group: "users",
         path: "/users",
         title: `${BASE_TITLE} - Users`,
+        requiredRoles: [ROLE_ADMIN],
       },
       {
         label: "Groups",
         group: "groups",
         path: "/groups",
         title: `${BASE_TITLE} - Groups`,
+        requiredRoles: [ROLE_ADMIN],
       },
     ],
   },
@@ -92,6 +99,7 @@ export const navigationRoutes: NavSection[] = [
         group: "audit",
         path: "/audit",
         title: `${BASE_TITLE} - Audit Log`,
+        requiredRoles: [ROLE_ADMIN, ROLE_AUDITOR],
       },
     ],
   },
@@ -103,6 +111,7 @@ export const navigationRoutes: NavSection[] = [
         group: "cc-compliance",
         path: "/cc-compliance",
         title: `${BASE_TITLE} - CC Compliance`,
+        requiredRoles: [ROLE_ADMIN, ROLE_AUDITOR],
       },
     ],
   },
