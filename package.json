@@ -11,6 +11,7 @@
     "@patternfly/react-icons": "^6.4.0",
     "@patternfly/react-table": "^6.4.0",
     "@reduxjs/toolkit": "^2.6.1",
+    "ldapts": "^8.1.7",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-redux": "^9.2.0",

@@ -6,6 +6,23 @@ import path from "path";
 import https from "https";
 import type { IncomingMessage } from "http";
 import { authPlugin } from "./server/authMiddleware";
+import type { AuthBackend } from "./server/authMiddleware";
+import { createLdapBackend } from "./server/ldapBackend";
+
+function buildAuthBackend(env: Record<string, string>): AuthBackend | undefined {
+  const ldapUrl = env.VITE_LDAP_URL;
+  if (!ldapUrl) return undefined;
+
+  return createLdapBackend({
+    url: ldapUrl,
+    baseDn: env.VITE_LDAP_BASE_DN || "o=pki-tomcat-CA",
+    bindDn: env.VITE_LDAP_BIND_DN,
+    bindPassword: env.VITE_LDAP_BIND_PASSWORD,
+    userSearchBase: env.VITE_LDAP_USER_SEARCH_BASE,
+    groupSearchBase: env.VITE_LDAP_GROUP_SEARCH_BASE,
+    tlsRejectUnauthorized: env.VITE_LDAP_TLS_REJECT_UNAUTHORIZED !== "false",
+  });
+}
 
 // Dev-only: strip Secure flag so HTTP dev server can use session cookies.
 function stripSecureFromCookies(proxyRes: IncomingMessage) {
@@ -48,7 +65,7 @@ export default defineConfig(({ mode }) => {
     build: {
       sourcemap: !isProd,
     },
-    plugins: [react(), authPlugin()],
+    plugins: [react(), authPlugin(buildAuthBackend(env))],
     resolve: {
       alias: {
         src: "/src",
