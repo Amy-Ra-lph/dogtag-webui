@@ -29,6 +29,7 @@ import BreadcrumbLayout from "src/components/BreadcrumbLayout";
 import {
   useGetEnrollmentTemplateQuery,
   useEnrollCertificateMutation,
+  extractApiError,
   type EnrollmentRequest,
 } from "src/services/dogtagApi";
 
@@ -128,11 +129,10 @@ const Enroll: React.FC = () => {
         });
       }
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "data" in err
-          ? JSON.stringify((err as { data: unknown }).data)
-          : "Failed to submit enrollment request.";
-      setSubmitResult({ success: false, message: msg });
+      setSubmitResult({
+        success: false,
+        message: extractApiError(err, "Failed to submit enrollment request."),
+      });
     }
   };
 

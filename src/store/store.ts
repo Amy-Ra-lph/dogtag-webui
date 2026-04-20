@@ -11,7 +11,13 @@ export const setupStore = () => {
     // and other useful features of `rtk-query`.
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
-        serializableCheck: false,
+        serializableCheck: {
+          ignoredActions: [
+            "dogtagApi/executeQuery/fulfilled",
+            "dogtagApi/executeMutation/fulfilled",
+          ],
+          ignoredPaths: ["dogtagApi"],
+        },
       }).concat(dogtagApi.middleware),
   });
 

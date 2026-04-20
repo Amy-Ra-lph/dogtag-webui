@@ -24,6 +24,7 @@ import {
   useGetRequestReviewQuery,
   useApproveRequestMutation,
   useRejectRequestMutation,
+  extractApiError,
 } from "src/services/dogtagApi";
 import StatusLabel from "src/components/StatusLabel";
 import ErrorBanner from "src/components/ErrorBanner";
@@ -165,11 +166,10 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
       });
       onClose();
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === "object" && "data" in err
-          ? JSON.stringify((err as { data: unknown }).data)
-          : `Failed to ${action} request.`;
-      onResult({ success: false, message: msg });
+      onResult({
+        success: false,
+        message: extractApiError(err, `Failed to ${action} request.`),
+      });
       onClose();
     }
   };
