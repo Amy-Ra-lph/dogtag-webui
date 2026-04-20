@@ -2,6 +2,8 @@ dogtag_ca_hostname: "{{ ansible_fqdn }}"
 dogtag_ca_https_port: 8443
 dogtag_ca_http_port: 8080
 dogtag_ds_port: 389
+dogtag_ds_secure_port: 636
+dogtag_ds_secure_connection: true
 # Passwords must be provided via vault — no defaults
 # dogtag_ds_password: (required)
 # dogtag_admin_password: (required)

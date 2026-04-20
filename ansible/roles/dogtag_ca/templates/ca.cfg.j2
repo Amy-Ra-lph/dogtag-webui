@@ -12,7 +12,12 @@ pki_client_pkcs12_password = {{ dogtag_admin_password }}
 pki_client_database_password = {{ dogtag_admin_password }}
 
 pki_ds_hostname = localhost
+{% if dogtag_ds_secure_connection | default(true) %}
+pki_ds_ldaps_port = {{ dogtag_ds_secure_port }}
+pki_ds_secure_connection = True
+{% else %}
 pki_ds_ldap_port = {{ dogtag_ds_port }}
+{% endif %}
 pki_ds_password = {{ dogtag_ds_password }}
 pki_ds_base_dn = {{ dogtag_ds_base_dn }}
 
