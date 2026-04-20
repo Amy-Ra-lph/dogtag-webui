@@ -16,6 +16,10 @@ import {
   DescriptionListTerm,
   DescriptionListDescription,
   Label,
+  Pagination,
+  Toolbar,
+  ToolbarContent,
+  ToolbarItem,
 } from "@patternfly/react-core";
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 import BreadcrumbLayout from "src/components/BreadcrumbLayout";
@@ -24,24 +28,49 @@ import {
   useGetRequestReviewQuery,
   useApproveRequestMutation,
   useRejectRequestMutation,
+  useCancelRequestMutation,
   extractApiError,
 } from "src/services/dogtagApi";
 import StatusLabel from "src/components/StatusLabel";
 import ErrorBanner from "src/components/ErrorBanner";
+
+const PAGE_SIZE = 20;
 
 const Requests: React.FC = () => {
   React.useEffect(() => {
     document.title = "Dogtag PKI - Requests";
   }, []);
 
-  const { data, isLoading, error } = useGetCertRequestsQuery();
+  const [page, setPage] = React.useState(1);
+  const { data, isLoading, error } = useGetCertRequestsQuery({
+    start: (page - 1) * PAGE_SIZE,
+    size: PAGE_SIZE,
+  });
   const requests = data?.entries ?? [];
+  const total = data?.total ?? 0;
 
   const [reviewId, setReviewId] = React.useState<string | null>(null);
   const [actionResult, setActionResult] = React.useState<{
     success: boolean;
     message: string;
   } | null>(null);
+
+  const [cancelRequest] = useCancelRequestMutation();
+
+  const handleCancel = async (requestId: string) => {
+    try {
+      await cancelRequest({ requestId, body: {} }).unwrap();
+      setActionResult({
+        success: true,
+        message: `Request ${requestId} canceled.`,
+      });
+    } catch (err: unknown) {
+      setActionResult({
+        success: false,
+        message: extractApiError(err, `Failed to cancel request ${requestId}.`),
+      });
+    }
+  };
 
   return (
     <>
@@ -68,6 +97,19 @@ const Requests: React.FC = () => {
             }
           />
         )}
+        <Toolbar>
+          <ToolbarContent>
+            <ToolbarItem variant="pagination" align={{ default: "alignEnd" }}>
+              <Pagination
+                itemCount={total}
+                perPage={PAGE_SIZE}
+                page={page}
+                onSetPage={(_e, p) => setPage(p)}
+                isCompact
+              />
+            </ToolbarItem>
+          </ToolbarContent>
+        </Toolbar>
         {isLoading ? (
           <Bullseye>
             <Spinner size="xl" />
@@ -107,13 +149,23 @@ const Requests: React.FC = () => {
                     </Td>
                     <Td>
                       {req.requestStatus === "pending" && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setReviewId(req.requestID)}
-                        >
-                          Review
-                        </Button>
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setReviewId(req.requestID)}
+                            className="pf-v6-u-mr-sm"
+                          >
+                            Review
+                          </Button>
+                          <Button
+                            variant="warning"
+                            size="sm"
+                            onClick={() => handleCancel(req.requestID)}
+                          >
+                            Cancel
+                          </Button>
+                        </>
                       )}
                     </Td>
                   </Tr>

@@ -166,6 +166,19 @@ const Profiles: React.FC = () => {
                     </Td>
                     <Td>
                       <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() =>
+                          navigate(
+                            `/profiles/edit/${encodeURIComponent(getId(p))}`,
+                          )
+                        }
+                        isDisabled={isEnabled(p)}
+                        className="pf-v6-u-mr-sm"
+                      >
+                        Edit
+                      </Button>
+                      <Button
                         variant="secondary"
                         size="sm"
                         onClick={() => handleToggle(p)}

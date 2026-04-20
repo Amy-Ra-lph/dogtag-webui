@@ -6,6 +6,13 @@ import {
   Spinner,
   Bullseye,
   Button,
+  Pagination,
+  Toolbar,
+  ToolbarContent,
+  ToolbarItem,
+  SearchInput,
+  FormSelect,
+  FormSelectOption,
 } from "@patternfly/react-core";
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 import { useNavigate } from "react-router";
@@ -22,14 +29,31 @@ function formatDate(epoch: number): string {
   });
 }
 
+const PAGE_SIZE = 20;
+
 const Certificates: React.FC = () => {
   React.useEffect(() => {
     document.title = "Dogtag PKI - Certificates";
   }, []);
 
   const navigate = useNavigate();
-  const { data, isLoading, error } = useGetCertificatesQuery();
+  const [page, setPage] = React.useState(1);
+  const [search, setSearch] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState("ALL");
+
+  const { data, isLoading, error } = useGetCertificatesQuery({
+    start: (page - 1) * PAGE_SIZE,
+    size: PAGE_SIZE,
+  });
   const certs = data?.entries ?? [];
+  const total = data?.total ?? 0;
+
+  const filtered = certs.filter((cert) => {
+    if (statusFilter !== "ALL" && cert.Status !== statusFilter) return false;
+    if (search && !cert.SubjectDN.toLowerCase().includes(search.toLowerCase()))
+      return false;
+    return true;
+  });
 
   return (
     <>
@@ -41,6 +65,39 @@ const Certificates: React.FC = () => {
       </PageSection>
       <PageSection hasBodyWrapper={false} isFilled={false}>
         {error && <ErrorBanner message="Failed to load certificates." />}
+        <Toolbar>
+          <ToolbarContent>
+            <ToolbarItem>
+              <SearchInput
+                placeholder="Filter by Subject DN"
+                value={search}
+                onChange={(_e, val) => setSearch(val)}
+                onClear={() => setSearch("")}
+              />
+            </ToolbarItem>
+            <ToolbarItem>
+              <FormSelect
+                value={statusFilter}
+                onChange={(_e, val) => setStatusFilter(val)}
+                aria-label="Filter by status"
+              >
+                <FormSelectOption value="ALL" label="All statuses" />
+                <FormSelectOption value="VALID" label="Valid" />
+                <FormSelectOption value="REVOKED" label="Revoked" />
+                <FormSelectOption value="EXPIRED" label="Expired" />
+              </FormSelect>
+            </ToolbarItem>
+            <ToolbarItem variant="pagination" align={{ default: "alignEnd" }}>
+              <Pagination
+                itemCount={total}
+                perPage={PAGE_SIZE}
+                page={page}
+                onSetPage={(_e, p) => setPage(p)}
+                isCompact
+              />
+            </ToolbarItem>
+          </ToolbarContent>
+        </Toolbar>
         {isLoading ? (
           <Bullseye>
             <Spinner size="xl" />
@@ -59,14 +116,14 @@ const Certificates: React.FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {certs.length === 0 ? (
+              {filtered.length === 0 ? (
                 <Tr>
                   <Td colSpan={7}>
                     <Content component="small">No certificates found.</Content>
                   </Td>
                 </Tr>
               ) : (
-                certs.map((cert) => (
+                filtered.map((cert) => (
                   <Tr key={cert.id}>
                     <Td>{cert.id}</Td>
                     <Td>{cert.SubjectDN}</Td>

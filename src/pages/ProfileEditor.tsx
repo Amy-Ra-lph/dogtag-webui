@@ -28,26 +28,36 @@ import {
   DescriptionListDescription,
 } from "@patternfly/react-core";
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
+import { useParams } from "react-router";
 import BreadcrumbLayout from "src/components/BreadcrumbLayout";
 import {
   useGetProfilesQuery,
   useGetProfileDetailQuery,
   useCreateProfileMutation,
+  useModifyProfileMutation,
   extractApiError,
   type ProfileDetail,
   type ProfilePolicy,
 } from "src/services/dogtagApi";
 
 const ProfileEditor: React.FC = () => {
+  const { profileId: editId } = useParams<{ profileId: string }>();
+  const isEditMode = !!editId;
+
   React.useEffect(() => {
-    document.title = "Dogtag PKI - Profile Editor";
-  }, []);
+    document.title = isEditMode
+      ? `Dogtag PKI - Edit Profile ${editId}`
+      : "Dogtag PKI - Create Profile";
+  }, [isEditMode, editId]);
 
   const { data: profileList } = useGetProfilesQuery();
   const sourceProfiles = (profileList?.entries ?? []).filter(
     (p) => String(p.enabled ?? p.profileEnabled ?? false) === "true",
   );
+
   const [sourceId, setSourceId] = React.useState("caServerCert");
+  const activeId = isEditMode ? editId! : sourceId;
+
   const [newId, setNewId] = React.useState("");
   const [newName, setNewName] = React.useState("");
   const [newDesc, setNewDesc] = React.useState("");
@@ -67,19 +77,26 @@ const ProfileEditor: React.FC = () => {
     data: sourceProfile,
     isLoading,
     error: loadError,
-  } = useGetProfileDetailQuery(sourceId);
+  } = useGetProfileDetailQuery(activeId);
 
   const [createProfile, { isLoading: creating }] = useCreateProfileMutation();
+  const [modifyProfile, { isLoading: saving }] = useModifyProfileMutation();
 
   React.useEffect(() => {
     setPolicyEdits({});
     setConstraintEdits({});
     setResult(null);
     if (sourceProfile) {
-      setNewName(sourceProfile.name ? `Custom ${sourceProfile.name}` : "");
+      if (isEditMode) {
+        setNewId(sourceProfile.id);
+        setNewName(sourceProfile.name ?? "");
+      } else {
+        setNewName(sourceProfile.name ? `Custom ${sourceProfile.name}` : "");
+      }
       setNewDesc(sourceProfile.description ?? "");
+      setNewVisible(sourceProfile.visible ?? true);
     }
-  }, [sourceProfile]);
+  }, [sourceProfile, isEditMode]);
 
   const getPolicyValue = (
     policyId: string,
@@ -146,7 +163,7 @@ const ProfileEditor: React.FC = () => {
       classId: sourceProfile.classId,
       name: newName.trim(),
       description: newDesc.trim(),
-      enabled: false,
+      enabled: isEditMode ? sourceProfile.enabled : false,
       visible: newVisible,
       authenticatorId: sourceProfile.authenticatorId,
       authzAcl: sourceProfile.authzAcl ?? "",
@@ -158,24 +175,40 @@ const ProfileEditor: React.FC = () => {
     };
   };
 
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     const profile = buildProfile();
     if (!profile) return;
     setResult(null);
 
     try {
-      await createProfile(profile).unwrap();
-      setResult({
-        success: true,
-        message: `Profile "${profile.id}" created successfully. Enable it from the Profiles page to start using it.`,
-      });
+      if (isEditMode) {
+        await modifyProfile({
+          profileId: profile.id,
+          body: profile,
+        }).unwrap();
+        setResult({
+          success: true,
+          message: `Profile "${profile.id}" updated successfully.`,
+        });
+      } else {
+        await createProfile(profile).unwrap();
+        setResult({
+          success: true,
+          message: `Profile "${profile.id}" created successfully. Enable it from the Profiles page to start using it.`,
+        });
+      }
     } catch (err: unknown) {
       setResult({
         success: false,
-        message: extractApiError(err, "Failed to create profile."),
+        message: extractApiError(
+          err,
+          `Failed to ${isEditMode ? "update" : "create"} profile.`,
+        ),
       });
     }
   };
+
+  const busy = creating || saving;
 
   const allPolicies: (ProfilePolicy & { setId: string })[] = [];
   if (sourceProfile?.policySets) {
@@ -192,12 +225,21 @@ const ProfileEditor: React.FC = () => {
         <BreadcrumbLayout
           items={[
             { name: "Profiles", url: "/profiles" },
-            { name: "Create Profile", url: "/profiles/create" },
+            {
+              name: isEditMode ? `Edit ${editId}` : "Create Profile",
+              url: isEditMode ? `/profiles/edit/${editId}` : "/profiles/create",
+            },
           ]}
         />
-        <Content component="h1">Create Certificate Profile</Content>
+        <Content component="h1">
+          {isEditMode
+            ? `Edit Profile: ${editId}`
+            : "Create Certificate Profile"}
+        </Content>
         <Content component="p">
-          Clone an existing profile and customize its policies and constraints.
+          {isEditMode
+            ? "Modify this profile's metadata and policy parameters."
+            : "Clone an existing profile and customize its policies and constraints."}
         </Content>
       </PageSection>
       <PageSection hasBodyWrapper={false} isFilled={false}>
@@ -205,42 +247,43 @@ const ProfileEditor: React.FC = () => {
           direction={{ default: "column" }}
           spaceItems={{ default: "spaceItemsLg" }}
         >
-          {/* Source profile selection */}
-          <FlexItem>
-            <Card>
-              <CardTitle>Source Profile</CardTitle>
-              <CardBody>
-                <FormGroup
-                  label="Clone from existing profile"
-                  fieldId="source-profile"
-                >
-                  <FormSelect
-                    id="source-profile"
-                    value={sourceId}
-                    onChange={(_e, val) => setSourceId(val)}
+          {!isEditMode && (
+            <FlexItem>
+              <Card>
+                <CardTitle>Source Profile</CardTitle>
+                <CardBody>
+                  <FormGroup
+                    label="Clone from existing profile"
+                    fieldId="source-profile"
                   >
-                    {sourceProfiles.map((p) => {
-                      const id = p.id || p.profileId || "";
-                      const name = p.name || p.profileName || id;
-                      return (
-                        <FormSelectOption
-                          key={id}
-                          value={id}
-                          label={`${name} (${id})`}
-                        />
-                      );
-                    })}
-                  </FormSelect>
-                </FormGroup>
-              </CardBody>
-            </Card>
-          </FlexItem>
+                    <FormSelect
+                      id="source-profile"
+                      value={sourceId}
+                      onChange={(_e, val) => setSourceId(val)}
+                    >
+                      {sourceProfiles.map((p) => {
+                        const id = p.id || p.profileId || "";
+                        const name = p.name || p.profileName || id;
+                        return (
+                          <FormSelectOption
+                            key={id}
+                            value={id}
+                            label={`${name} (${id})`}
+                          />
+                        );
+                      })}
+                    </FormSelect>
+                  </FormGroup>
+                </CardBody>
+              </Card>
+            </FlexItem>
+          )}
 
           {loadError && (
             <FlexItem>
               <Alert
                 variant="danger"
-                title="Failed to load source profile. Profile management requires admin authentication configured in Dogtag."
+                title="Failed to load profile. Profile management requires admin authentication."
                 isInline
               />
             </FlexItem>
@@ -254,10 +297,9 @@ const ProfileEditor: React.FC = () => {
             </FlexItem>
           ) : sourceProfile ? (
             <>
-              {/* New profile metadata */}
               <FlexItem>
                 <Card>
-                  <CardTitle>New Profile Settings</CardTitle>
+                  <CardTitle>Profile Settings</CardTitle>
                   <CardBody>
                     <Form>
                       <FormGroup label="Profile ID" fieldId="new-id" isRequired>
@@ -266,6 +308,7 @@ const ProfileEditor: React.FC = () => {
                           value={newId}
                           onChange={(_e, val) => setNewId(val)}
                           placeholder="myCustomProfile"
+                          isDisabled={isEditMode}
                         />
                       </FormGroup>
                       <FormGroup label="Display Name" fieldId="new-name">
@@ -296,38 +339,38 @@ const ProfileEditor: React.FC = () => {
                 </Card>
               </FlexItem>
 
-              {/* Source profile info */}
-              <FlexItem>
-                <Card>
-                  <CardTitle>
-                    Source Profile: {sourceProfile.name ?? sourceId}
-                  </CardTitle>
-                  <CardBody>
-                    <DescriptionList isHorizontal isCompact>
-                      <DescriptionListGroup>
-                        <DescriptionListTerm>Class</DescriptionListTerm>
-                        <DescriptionListDescription>
-                          {sourceProfile.classId}
-                        </DescriptionListDescription>
-                      </DescriptionListGroup>
-                      <DescriptionListGroup>
-                        <DescriptionListTerm>Inputs</DescriptionListTerm>
-                        <DescriptionListDescription>
-                          {sourceProfile.inputs?.length ?? 0} input(s)
-                        </DescriptionListDescription>
-                      </DescriptionListGroup>
-                      <DescriptionListGroup>
-                        <DescriptionListTerm>Policies</DescriptionListTerm>
-                        <DescriptionListDescription>
-                          {allPolicies.length} policy rule(s)
-                        </DescriptionListDescription>
-                      </DescriptionListGroup>
-                    </DescriptionList>
-                  </CardBody>
-                </Card>
-              </FlexItem>
+              {!isEditMode && (
+                <FlexItem>
+                  <Card>
+                    <CardTitle>
+                      Source Profile: {sourceProfile.name ?? activeId}
+                    </CardTitle>
+                    <CardBody>
+                      <DescriptionList isHorizontal isCompact>
+                        <DescriptionListGroup>
+                          <DescriptionListTerm>Class</DescriptionListTerm>
+                          <DescriptionListDescription>
+                            {sourceProfile.classId}
+                          </DescriptionListDescription>
+                        </DescriptionListGroup>
+                        <DescriptionListGroup>
+                          <DescriptionListTerm>Inputs</DescriptionListTerm>
+                          <DescriptionListDescription>
+                            {sourceProfile.inputs?.length ?? 0} input(s)
+                          </DescriptionListDescription>
+                        </DescriptionListGroup>
+                        <DescriptionListGroup>
+                          <DescriptionListTerm>Policies</DescriptionListTerm>
+                          <DescriptionListDescription>
+                            {allPolicies.length} policy rule(s)
+                          </DescriptionListDescription>
+                        </DescriptionListGroup>
+                      </DescriptionList>
+                    </CardBody>
+                  </Card>
+                </FlexItem>
+              )}
 
-              {/* Policy editor */}
               <FlexItem>
                 <Card>
                   <CardTitle>Profile Policies</CardTitle>
@@ -338,7 +381,6 @@ const ProfileEditor: React.FC = () => {
                         toggleText={`${policy.def?.name ?? `Policy ${policy.id}`} — ${policy.def?.text ?? ""}`}
                         className="pf-v6-u-mb-md"
                       >
-                        {/* Default params */}
                         {policy.def?.params && policy.def.params.length > 0 && (
                           <>
                             <Content component="h5" className="pf-v6-u-mb-sm">
@@ -384,7 +426,6 @@ const ProfileEditor: React.FC = () => {
                           </>
                         )}
 
-                        {/* Constraint params */}
                         {policy.constraint?.constraints &&
                           policy.constraint.constraints.length > 0 && (
                             <>
@@ -439,16 +480,15 @@ const ProfileEditor: React.FC = () => {
                 </Card>
               </FlexItem>
 
-              {/* Actions */}
               <FlexItem>
                 <ActionGroup>
                   <Button
                     variant="primary"
-                    onClick={handleCreate}
-                    isLoading={creating}
-                    isDisabled={creating || !newId.trim()}
+                    onClick={handleSubmit}
+                    isLoading={busy}
+                    isDisabled={busy || !newId.trim()}
                   >
-                    Create Profile
+                    {isEditMode ? "Save Changes" : "Create Profile"}
                   </Button>
                 </ActionGroup>
               </FlexItem>

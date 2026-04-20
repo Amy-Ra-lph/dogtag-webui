@@ -23,6 +23,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/requests" element={<Requests />} />
       <Route path="/profiles" element={<Profiles />} />
       <Route path="/profiles/create" element={<ProfileEditor />} />
+      <Route path="/profiles/edit/:profileId" element={<ProfileEditor />} />
       <Route path="/authorities" element={<Authorities />} />
       <Route path="/users" element={<Users />} />
       <Route path="/groups" element={<Groups />} />
