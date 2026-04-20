@@ -1,61 +1,175 @@
 # Dogtag PKI WebUI
 
-A modern web interface for [Dogtag PKI](https://www.dogtagpki.org/) (upstream of Red Hat Certificate System), built with React, PatternFly 6, and Redux Toolkit.
+A modern web interface for [Dogtag PKI](https://www.dogtagpki.org/) (upstream of Red Hat Certificate System), built with React 18, PatternFly 6, and Redux Toolkit.
 
-## Prerequisites
+## Features
+
+- **Dashboard** with certificate summary cards, expiring-soon alerts, and quick actions
+- **Certificate management** — browse, search by Subject DN or SAN, view details, revoke
+- **Enrollment** — submit certificate signing requests via configurable profiles
+- **Request workflow** — approve, reject, or cancel pending requests
+- **Profile management** — view, clone, and edit certificate profiles
+- **Authorities** — view sub-CA hierarchy
+- **Audit log** viewer
+- **Role-based access control** — three roles (Administrator, Agent, Auditor) with server-side enforcement
+- **Session auth** — HMAC-signed cookies, rate limiting, CSRF protection
+- **Container-ready** — multi-stage UBI 9 container build with nginx
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  Browser                                        │
+│  React 18 + PatternFly 6 + Redux Toolkit        │
+└───────────────────┬─────────────────────────────┘
+                    │ /webui/api/auth/*  (login/logout/session)
+                    │ /ca/rest/*         (PKI operations)
+                    ▼
+┌─────────────────────────────────────────────────┐
+│  Vite Dev Server / nginx (production)           │
+│  ┌─────────────┐  ┌──────────────────────────┐  │
+│  │ Auth plugin  │  │ RBAC middleware          │  │
+│  │ - sessions   │  │ - route → role mapping   │  │
+│  │ - rate limit │  │ - 403 on insufficient    │  │
+│  │ - CSRF check │  │   permissions            │  │
+│  └─────────────┘  └──────────────────────────┘  │
+└───────────────────┬─────────────────────────────┘
+                    │ mTLS (client certificate)
+                    ▼
+┌─────────────────────────────────────────────────┐
+│  Dogtag CA (port 8443)                          │
+│  REST API: /ca/rest/*                           │
+└─────────────────────────────────────────────────┘
+```
+
+**Key design decisions:**
+
+- Dogtag authenticates by client certificate only (Basic auth is ignored when a cert is presented). The WebUI adds its own session-based auth layer with a pluggable `AuthBackend` interface.
+- Server-side RBAC middleware checks the user's session roles against a URL pattern map before proxying to Dogtag. Client-side nav filtering is cosmetic only — the server enforces access.
+- A demo auth backend with built-in users is active in development. For production, implement the `AuthBackend` interface with LDAP bind or another directory.
+
+## Quick Start
+
+### Prerequisites
 
 - Node.js >= 18
 - A running Dogtag CA instance (default: `https://localhost:8443`)
+- Admin client certificate and key from the CA
 
-## Quick Start
+### Development
 
 ```bash
 # Install dependencies
 npm install
 
-# Start the dev server (proxies /ca/rest/* to localhost:8443)
+# Place your CA admin cert and key
+mkdir -p certs/
+cp /path/to/admin.cert certs/admin.cert
+cp /path/to/admin.key certs/admin.key
+
+# (Optional) Copy and edit environment config
+cp .env.example .env
+
+# Start the dev server
 npm run dev
 
-# Open http://localhost:5173 in your browser
+# Open http://localhost:5173
+# Demo login: caadmin / Secret.123
 ```
+
+### Container
+
+```bash
+# Build
+podman build -t dogtag-webui .
+
+# Run (point to your CA)
+podman run -d -p 8080:8080 \
+  -e CA_TARGET_URL=https://ca.example.com:8443 \
+  dogtag-webui
+```
+
+The container uses a multi-stage build: UBI 9 nodejs-18-minimal for the build stage, UBI 9 nginx-122 for runtime. It runs as non-root (UID 1001).
+
+### Ansible
+
+Full provisioning playbooks for 389 DS + Dogtag CA and the WebUI container are in a separate repo: [ansible-dogtagpki](https://github.com/Amy-Ra-lph/ansible-dogtagpki).
 
 ## Available Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start Vite dev server with API proxy |
+| `npm run dev` | Start Vite dev server with API proxy and auth |
 | `npm run build` | Type-check and build for production |
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run ESLint |
-| `npm run test` | Run tests with Vitest |
 
-## Production Deployment
+## Environment Variables
 
-```bash
-npm run build
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_CA_TARGET_URL` | `https://localhost:8443` | Dogtag CA backend URL |
+| `VITE_CA_CERT_PATH` | `certs/admin.cert` | Client certificate for CA proxy |
+| `VITE_CA_KEY_PATH` | `certs/admin.key` | Client key for CA proxy |
+| `VITE_DEV_HOST` | `localhost` | Dev server bind address |
+| `CA_TARGET_URL` | `https://localhost:8443` | CA URL for container nginx proxy |
 
-The built files are output to `dist/`. Serve them with any static file server. An example nginx configuration is provided in `nginx/dogtag-webui.conf` that:
+## Roles and Permissions
 
-- Serves the SPA with HTML5 history fallback
-- Proxies `/ca/rest/` requests to the Dogtag CA backend on port 8443
+| Page | Administrator | Agent | Auditor |
+|------|:---:|:---:|:---:|
+| Dashboard | Y | Y | Y |
+| Certificates | Y | Y | Y |
+| Authorities | Y | Y | Y |
+| Enroll | Y | Y | - |
+| Requests | Y | Y | - |
+| Profiles | Y | Y | - |
+| Create Profile | Y | - | - |
+| Users / Groups | Y | - | - |
+| Audit Log | Y | - | Y |
+| CC Compliance | Y | - | Y |
+
+Demo accounts for development:
+
+| Username | Password | Roles |
+|----------|----------|-------|
+| `caadmin` | `Secret.123` | Administrator, Agent |
+| `agent1` | `agent123` | Agent |
+| `auditor1` | `auditor123` | Auditor |
 
 ## Project Structure
 
 ```
 src/
-  app/            App shell (PatternFly Page layout)
-  components/     Shared UI components (breadcrumbs, etc.)
-  navigation/     Route definitions and sidebar nav
-  pages/          Page-level components (one per nav section)
+  app/            App shell (PatternFly Page layout, masthead, logout)
+  auth/           Role definitions and helpers
+  components/     Shared UI (ProtectedRoute, breadcrumbs)
+  navigation/     Route definitions, sidebar nav, role-based filtering
+  pages/          Page components (one per feature area)
   services/       RTK Query API definitions (Dogtag REST)
-  store/          Redux store configuration and typed hooks
-nginx/            Example reverse proxy config
+  store/          Redux store, auth slice, typed hooks
+server/
+  authMiddleware.ts   Auth plugin (sessions, RBAC, rate limiting, CSRF)
+nginx/
+  dogtag-webui.conf   Standalone nginx config
+  container.conf      Container nginx config with security headers
+ansible/              Symlinked playbooks (see ansible-dogtagpki repo)
+certs/                Client certs for CA proxy (not tracked in git)
 ```
 
-## Architecture
+## Security
 
-- **API Layer**: RTK Query (`dogtagApi.ts`) targets the Dogtag CA REST API at `/ca/rest/`. In development, Vite proxies these requests to `https://localhost:8443`.
-- **State**: Redux Toolkit store with RTK Query middleware for caching, invalidation, and polling.
-- **Routing**: React Router v7 with PatternFly `Page` / `PageSidebar` layout.
-- **Styling**: PatternFly 6 component library -- no custom CSS framework needed.
+See [SECURITY.md](SECURITY.md) for the full security audit results, including 20 resolved findings and 4 open architectural items with remediation recommendations.
+
+Key security features:
+- HMAC-signed session cookies with timing-safe verification
+- Rate limiting (5 attempts per IP per 15 minutes)
+- CSRF protection via Origin/Referer validation
+- Server-side RBAC enforcement on all `/ca/rest/` routes
+- Security headers (CSP, HSTS, X-Frame-Options, etc.)
+- Error message sanitization (no stack traces, 200-char cap)
+- Non-root container runtime
+
+## License
+
+GPL-3.0-or-later
