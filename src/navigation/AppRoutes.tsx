@@ -5,6 +5,7 @@ import Certificates from "src/pages/Certificates";
 import Enroll from "src/pages/Enroll";
 import Requests from "src/pages/Requests";
 import Profiles from "src/pages/Profiles";
+import ProfileEditor from "src/pages/ProfileEditor";
 import Authorities from "src/pages/Authorities";
 import Users from "src/pages/Users";
 import Groups from "src/pages/Groups";
@@ -19,6 +20,7 @@ const AppRoutes: React.FC = () => {
       <Route path="/enroll" element={<Enroll />} />
       <Route path="/requests" element={<Requests />} />
       <Route path="/profiles" element={<Profiles />} />
+      <Route path="/profiles/create" element={<ProfileEditor />} />
       <Route path="/authorities" element={<Authorities />} />
       <Route path="/users" element={<Users />} />
       <Route path="/groups" element={<Groups />} />

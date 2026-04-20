@@ -115,6 +115,65 @@ export interface AuthorityData {
   ready?: boolean;
 }
 
+// Profile detail types (full profile definition for create/modify)
+export interface ProfileParam {
+  name: string;
+  value: string;
+  descriptor?: { Syntax: string; Description: string };
+}
+
+export interface PolicyDefault {
+  name: string;
+  classId: string;
+  text?: string;
+  attributes?: ProfileParam[];
+  params?: ProfileParam[];
+}
+
+export interface PolicyConstraint {
+  name: string;
+  classId?: string;
+  text?: string;
+  constraints?: ProfileParam[];
+}
+
+export interface ProfilePolicy {
+  id: string;
+  def: PolicyDefault;
+  constraint: PolicyConstraint;
+}
+
+export interface ProfileInput {
+  id: string;
+  classId?: string;
+  name?: string;
+  attributes?: ProfileParam[];
+}
+
+export interface ProfileOutput {
+  id: string;
+  classId?: string;
+  name?: string;
+  attributes?: ProfileParam[];
+}
+
+export interface ProfileDetail {
+  id: string;
+  classId: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  visible: boolean;
+  enabledBy?: string;
+  authenticatorId?: string;
+  authzAcl?: string;
+  renewal?: boolean;
+  xmlOutput?: boolean;
+  inputs?: ProfileInput[];
+  outputs?: ProfileOutput[];
+  policySets?: Record<string, ProfilePolicy[]>;
+}
+
 // Enrollment types
 export interface EnrollmentAttribute {
   name: string;
@@ -271,6 +330,52 @@ export const dogtagApi = createApi({
       query: () => "profiles",
       providesTags: ["Profiles"],
     }),
+    getProfileDetail: build.query<ProfileDetail, string>({
+      query: (profileId) => `profiles/${profileId}`,
+      providesTags: (_result, _error, id) => [{ type: "Profiles", id }],
+    }),
+    createProfile: build.mutation<ProfileDetail, ProfileDetail>({
+      query: (body) => ({
+        url: "profiles",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Profiles"],
+    }),
+    modifyProfile: build.mutation<
+      ProfileDetail,
+      { profileId: string; body: ProfileDetail }
+    >({
+      query: ({ profileId, body }) => ({
+        url: `profiles/${profileId}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Profiles"],
+    }),
+    enableProfile: build.mutation<void, string>({
+      query: (profileId) => ({
+        url: `profiles/${profileId}`,
+        method: "POST",
+        params: { action: "enable" },
+      }),
+      invalidatesTags: ["Profiles"],
+    }),
+    disableProfile: build.mutation<void, string>({
+      query: (profileId) => ({
+        url: `profiles/${profileId}`,
+        method: "POST",
+        params: { action: "disable" },
+      }),
+      invalidatesTags: ["Profiles"],
+    }),
+    deleteProfile: build.mutation<void, string>({
+      query: (profileId) => ({
+        url: `profiles/${profileId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Profiles"],
+    }),
 
     // ---- Users ----
     getUsers: build.query<UserCollection, void>({
@@ -309,6 +414,12 @@ export const {
   useGetEnrollmentTemplateQuery,
   useEnrollCertificateMutation,
   useGetProfilesQuery,
+  useGetProfileDetailQuery,
+  useCreateProfileMutation,
+  useModifyProfileMutation,
+  useEnableProfileMutation,
+  useDisableProfileMutation,
+  useDeleteProfileMutation,
   useGetUsersQuery,
   useGetGroupsQuery,
   useGetAuditConfigQuery,

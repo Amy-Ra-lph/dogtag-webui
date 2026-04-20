@@ -43,6 +43,12 @@ export const navigationRoutes: NavSection[] = [
         title: `${BASE_TITLE} - Profiles`,
       },
       {
+        label: "Create Profile",
+        group: "profile-create",
+        path: "/profiles/create",
+        title: `${BASE_TITLE} - Create Profile`,
+      },
+      {
         label: "Authorities",
         group: "authorities",
         path: "/authorities",
