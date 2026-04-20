@@ -1,8 +1,5 @@
 import React from "react";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-} from "@patternfly/react-core";
+import { Breadcrumb, BreadcrumbItem } from "@patternfly/react-core";
 import { NavLink } from "react-router";
 
 export interface BreadcrumbEntry {

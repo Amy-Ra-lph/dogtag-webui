@@ -25,6 +25,12 @@ export const navigationRoutes: NavSection[] = [
         title: `${BASE_TITLE} - Certificates`,
       },
       {
+        label: "Enroll",
+        group: "enroll",
+        path: "/enroll",
+        title: `${BASE_TITLE} - Enroll Certificate`,
+      },
+      {
         label: "Requests",
         group: "requests",
         path: "/requests",
@@ -69,6 +75,17 @@ export const navigationRoutes: NavSection[] = [
         group: "audit",
         path: "/audit",
         title: `${BASE_TITLE} - Audit Log`,
+      },
+    ],
+  },
+  {
+    label: "Compliance",
+    items: [
+      {
+        label: "CC Compliance",
+        group: "cc-compliance",
+        path: "/cc-compliance",
+        title: `${BASE_TITLE} - CC Compliance`,
       },
     ],
   },

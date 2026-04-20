@@ -11,7 +11,7 @@ const Navigation: React.FC = () => {
       <NavList>
         {navigationRoutes.map((section) => {
           const isSectionActive = section.items.some(
-            (item) => location.pathname === item.path
+            (item) => location.pathname === item.path,
           );
 
           return (

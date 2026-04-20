@@ -2,7 +2,6 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 // -----------------------------------------------------------------
 // Dogtag PKI REST API types
-// These mirror the JSON structures returned by the Dogtag CA REST API.
 // -----------------------------------------------------------------
 
 export interface CertInfo {
@@ -14,23 +13,24 @@ export interface CertInfo {
   Version: number;
   KeyLength: number;
   KeyAlgorithmOID: string;
-  NotValidBefore: string;
-  NotValidAfter: string;
-  IssuedOn: string;
+  NotValidBefore: number;
+  NotValidAfter: number;
+  IssuedOn: number;
   IssuedBy: string;
   PKCS7CertChain?: string;
   Link?: HateoasLink;
 }
 
 export interface CertRequestInfo {
-  RequestID: string;
-  RequestType: string;
-  RequestStatus: string;
-  CertRequestType: string;
-  OperationResult: string;
-  CertId?: string;
-  ErrorMessage?: string;
-  Link?: HateoasLink;
+  requestID: string;
+  requestType: string;
+  requestStatus: string;
+  certRequestType?: string;
+  operationResult: string;
+  certId?: string;
+  errorMessage?: string;
+  creationTime?: number;
+  modificationTime?: number;
 }
 
 export interface ProfileData {
@@ -40,6 +40,11 @@ export interface ProfileData {
   description: string;
   enabled: boolean;
   visible: boolean;
+  profileId?: string;
+  profileName?: string;
+  profileDescription?: string;
+  profileEnabled?: boolean | string;
+  profileVisible?: boolean | string;
   Link?: HateoasLink;
 }
 
@@ -66,7 +71,6 @@ export interface HateoasLink {
   type: string;
 }
 
-// Collection wrappers returned by the Dogtag REST API
 export interface CertCollection {
   total: number;
   entries: CertInfo[];
@@ -92,9 +96,84 @@ export interface GroupCollection {
   entries: GroupData[];
 }
 
+export interface AuditConfig {
+  Status: string;
+  Signed: boolean;
+  Interval: number;
+  bufferSize: number;
+  Events: Record<string, string>;
+}
+
+export interface AuthorityData {
+  id: string;
+  dn: string;
+  issuerDN?: string;
+  enabled: boolean;
+  description?: string;
+  isHostAuthority?: boolean;
+  serial?: number;
+  ready?: boolean;
+}
+
+// Enrollment types
+export interface EnrollmentAttribute {
+  name: string;
+  Value: string;
+  Descriptor?: {
+    Syntax: string;
+    Description: string;
+  };
+}
+
+export interface EnrollmentInput {
+  id: string;
+  ClassID: string;
+  Name: string;
+  ConfigAttribute: unknown[];
+  Attribute: EnrollmentAttribute[];
+}
+
+export interface EnrollmentTemplate {
+  ProfileID: string;
+  Renewal: boolean;
+  Input: EnrollmentInput[];
+  Output: unknown[];
+}
+
+export interface EnrollmentRequest {
+  ProfileID: string;
+  Renewal: boolean;
+  Input: {
+    id: string;
+    ClassID: string;
+    Name: string;
+    Attribute: { name: string; Value: string }[];
+  }[];
+}
+
+export interface EnrollmentResponse {
+  entries: CertRequestInfo[];
+}
+
+// Agent review types
+export interface CertReviewResponse {
+  nonce: string;
+  requestId: string;
+  requestType: string;
+  requestStatus: string;
+  requestCreationTime: string;
+  requestNotes: string;
+  ProfileID: string;
+  profileName: string;
+  profileDescription: string;
+  Input: EnrollmentInput[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ProfilePolicySet: any[];
+  [key: string]: unknown;
+}
+
 // -----------------------------------------------------------------
 // RTK Query API definition
-// Base URL targets the Dogtag CA REST API, proxied via Vite in dev.
 // -----------------------------------------------------------------
 
 export const dogtagApi = createApi({
@@ -113,10 +192,15 @@ export const dogtagApi = createApi({
     "Profiles",
     "Users",
     "Groups",
+    "Audit",
+    "Authorities",
   ],
   endpoints: (build) => ({
     // ---- Certificates ----
-    getCertificates: build.query<CertCollection, { start?: number; size?: number } | void>({
+    getCertificates: build.query<
+      CertCollection,
+      { start?: number; size?: number } | void
+    >({
       query: (params) => ({
         url: "certs",
         params: params ?? undefined,
@@ -128,13 +212,58 @@ export const dogtagApi = createApi({
       providesTags: (_result, _error, id) => [{ type: "Certificates", id }],
     }),
 
-    // ---- Certificate Requests ----
-    getCertRequests: build.query<CertRequestCollection, { start?: number; size?: number } | void>({
+    // ---- Certificate Requests (agent endpoint) ----
+    getCertRequests: build.query<
+      CertRequestCollection,
+      { start?: number; size?: number } | void
+    >({
       query: (params) => ({
-        url: "certrequests",
+        url: "agent/certrequests",
         params: params ?? undefined,
       }),
       providesTags: ["CertRequests"],
+    }),
+
+    // ---- Agent review/approve/reject ----
+    getRequestReview: build.query<CertReviewResponse, string>({
+      query: (requestId) => `agent/certrequests/${requestId}`,
+    }),
+    approveRequest: build.mutation<void, { requestId: string; body: unknown }>({
+      query: ({ requestId, body }) => ({
+        url: `agent/certrequests/${requestId}/approve`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["CertRequests", "Certificates"],
+    }),
+    rejectRequest: build.mutation<void, { requestId: string; body: unknown }>({
+      query: ({ requestId, body }) => ({
+        url: `agent/certrequests/${requestId}/reject`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["CertRequests"],
+    }),
+    cancelRequest: build.mutation<void, { requestId: string; body: unknown }>({
+      query: ({ requestId, body }) => ({
+        url: `agent/certrequests/${requestId}/cancel`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["CertRequests"],
+    }),
+
+    // ---- Enrollment ----
+    getEnrollmentTemplate: build.query<EnrollmentTemplate, string>({
+      query: (profileId) => `certrequests/profiles/${profileId}`,
+    }),
+    enrollCertificate: build.mutation<EnrollmentResponse, EnrollmentRequest>({
+      query: (body) => ({
+        url: "certrequests",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["CertRequests"],
     }),
 
     // ---- Profiles ----
@@ -154,6 +283,18 @@ export const dogtagApi = createApi({
       query: () => "admin/groups",
       providesTags: ["Groups"],
     }),
+
+    // ---- Audit ----
+    getAuditConfig: build.query<AuditConfig, void>({
+      query: () => "audit",
+      providesTags: ["Audit"],
+    }),
+
+    // ---- Authorities ----
+    getAuthorities: build.query<AuthorityData[], void>({
+      query: () => "authorities",
+      providesTags: ["Authorities"],
+    }),
   }),
 });
 
@@ -161,7 +302,15 @@ export const {
   useGetCertificatesQuery,
   useGetCertificateQuery,
   useGetCertRequestsQuery,
+  useGetRequestReviewQuery,
+  useApproveRequestMutation,
+  useRejectRequestMutation,
+  useCancelRequestMutation,
+  useGetEnrollmentTemplateQuery,
+  useEnrollCertificateMutation,
   useGetProfilesQuery,
   useGetUsersQuery,
   useGetGroupsQuery,
+  useGetAuditConfigQuery,
+  useGetAuthoritiesQuery,
 } = dogtagApi;

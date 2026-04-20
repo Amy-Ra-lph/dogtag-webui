@@ -15,7 +15,7 @@ import "@patternfly/patternfly/utilities/Display/display.css";
 import "@patternfly/patternfly/utilities/Accessibility/accessibility.css";
 
 const root = ReactDOM.createRoot(
-  document.getElementById("root") as HTMLElement
+  document.getElementById("root") as HTMLElement,
 );
 
 root.render(
@@ -25,5 +25,5 @@ root.render(
         <App />
       </BrowserRouter>
     </Provider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
