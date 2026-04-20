@@ -74,13 +74,30 @@ export default defineConfig(({ mode }) => {
       },
     },
     test: {
-      environment: "jsdom",
-      server: {
-        deps: {
-          inline: [/@patternfly\/.*/],
+      projects: [
+        {
+          test: {
+            name: "server",
+            globals: true,
+            include: ["server/**/*.test.ts"],
+            environment: "node",
+          },
         },
-      },
-      setupFiles: ["./src/setupTests.ts"],
+        {
+          test: {
+            name: "client",
+            globals: true,
+            include: ["src/**/*.test.{ts,tsx}"],
+            environment: "jsdom",
+            server: {
+              deps: {
+                inline: [/@patternfly\/.*/],
+              },
+            },
+            setupFiles: ["./src/setupTests.ts"],
+          },
+        },
+      ],
     },
   };
 });

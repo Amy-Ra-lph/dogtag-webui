@@ -53,7 +53,7 @@ const SECRET = crypto.randomBytes(32).toString("hex");
 const SESSION_MAX_AGE_MS = 2 * 60 * 60 * 1000; // 2 hours
 const SESSION_MAX_AGE_SEC = SESSION_MAX_AGE_MS / 1000;
 
-interface SessionPayload {
+export interface SessionPayload {
   username: string;
   fullName: string;
   email: string;
@@ -61,7 +61,7 @@ interface SessionPayload {
   exp: number;
 }
 
-function sign(payload: SessionPayload): string {
+export function sign(payload: SessionPayload): string {
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = crypto
     .createHmac("sha256", SECRET)
@@ -70,7 +70,7 @@ function sign(payload: SessionPayload): string {
   return `${data}.${sig}`;
 }
 
-function verify(token: string): SessionPayload | null {
+export function verify(token: string): SessionPayload | null {
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [data, sig] = parts;
@@ -101,7 +101,7 @@ function verify(token: string): SessionPayload | null {
   }
 }
 
-function parseCookies(header: string | undefined): Record<string, string> {
+export function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
   if (!header) return cookies;
   for (const pair of header.split(";")) {
@@ -115,18 +115,18 @@ function parseCookies(header: string | undefined): Record<string, string> {
 // Rate limiting
 // ---------------------------------------------------------------------------
 
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+export const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
-function isRateLimited(ip: string): boolean {
+export function isRateLimited(ip: string): boolean {
   const now = Date.now();
   const entry = loginAttempts.get(ip);
   if (!entry || entry.resetAt < now) return false;
   return entry.count >= MAX_ATTEMPTS;
 }
 
-function recordAttempt(ip: string, success: boolean): void {
+export function recordAttempt(ip: string, success: boolean): void {
   if (success) {
     loginAttempts.delete(ip);
     return;
@@ -177,7 +177,7 @@ const ROLE_ROUTE_MAP: Array<{ pattern: RegExp; roles: string[] }> = [
   },
 ];
 
-function checkRouteAccess(url: string, roles: string[]): boolean {
+export function checkRouteAccess(url: string, roles: string[]): boolean {
   for (const rule of ROLE_ROUTE_MAP) {
     if (rule.pattern.test(url)) {
       return rule.roles.some((r) => roles.includes(r));
