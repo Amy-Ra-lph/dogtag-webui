@@ -1,0 +1,22 @@
+[DEFAULT]
+pki_instance_name = {{ dogtag_instance_name }}
+pki_https_port = {{ dogtag_ca_https_port }}
+pki_http_port = {{ dogtag_ca_http_port }}
+
+pki_admin_password = {{ dogtag_admin_password }}
+pki_admin_email = {{ dogtag_admin_email }}
+pki_admin_name = caadmin
+pki_admin_uid = caadmin
+
+pki_client_pkcs12_password = {{ dogtag_admin_password }}
+pki_client_database_password = {{ dogtag_admin_password }}
+
+pki_ds_hostname = localhost
+pki_ds_ldap_port = {{ dogtag_ds_port }}
+pki_ds_password = {{ dogtag_ds_password }}
+pki_ds_base_dn = {{ dogtag_ds_base_dn }}
+
+pki_security_domain_name = {{ dogtag_security_domain }}
+
+[CA]
+pki_ca_signing_subject_dn = {{ dogtag_ca_subject }}

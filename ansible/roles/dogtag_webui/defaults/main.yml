@@ -1,0 +1,8 @@
+webui_container_image: "dogtag-webui:latest"
+webui_container_name: "dogtag-webui"
+webui_port: 8080
+webui_ca_target_url: "https://localhost:8443"
+webui_build_from_source: true
+webui_source_dir: "/opt/dogtag-webui"
+webui_git_repo: "https://gitlab.cee.redhat.com/afarley/dogtag-webui.git"
+webui_git_version: "main"

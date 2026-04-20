@@ -1,0 +1,14 @@
+dogtag_ca_hostname: "{{ ansible_fqdn }}"
+dogtag_ca_https_port: 8443
+dogtag_ca_http_port: 8080
+dogtag_ds_port: 389
+dogtag_ds_password: "Secret.123"
+dogtag_admin_password: "Secret.123"
+dogtag_admin_email: "caadmin@{{ dogtag_ca_hostname }}"
+dogtag_security_domain: "Example Security Domain"
+dogtag_ca_subject: "CN=CA Signing Certificate,O=Example"
+dogtag_instance_name: "pki-tomcat"
+dogtag_ds_base_dn: "o={{ dogtag_instance_name }}-CA"
+dogtag_admin_cert_path: "/root/.dogtag/{{ dogtag_instance_name }}/ca_admin_cert.p12"
+dogtag_admin_cert_pem: "/root/.dogtag/{{ dogtag_instance_name }}/ca/admin.cert"
+dogtag_admin_key_pem: "/root/.dogtag/{{ dogtag_instance_name }}/ca/admin.key"

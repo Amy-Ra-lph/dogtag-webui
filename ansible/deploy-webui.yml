@@ -1,0 +1,9 @@
+---
+# Deploy WebUI only (assumes Dogtag CA is already running)
+# Usage: ansible-playbook -i inventory/hosts.yml deploy-webui.yml
+
+- name: Deploy Dogtag WebUI
+  hosts: webui_servers
+  become: true
+  roles:
+    - dogtag_webui

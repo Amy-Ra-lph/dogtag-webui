@@ -1,0 +1,5 @@
+---
+- name: restart pki-tomcatd
+  ansible.builtin.systemd:
+    name: "pki-tomcatd@{{ dogtag_instance_name }}"
+    state: restarted

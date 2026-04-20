@@ -1,0 +1,58 @@
+---
+- name: Install podman
+  ansible.builtin.dnf:
+    name: podman
+    state: present
+
+- name: Clone WebUI source
+  ansible.builtin.git:
+    repo: "{{ webui_git_repo }}"
+    dest: "{{ webui_source_dir }}"
+    version: "{{ webui_git_version }}"
+    force: true
+  when: webui_build_from_source
+
+- name: Build WebUI container image
+  ansible.builtin.command:
+    cmd: >
+      podman build
+      -t {{ webui_container_image }}
+      -f Containerfile .
+    chdir: "{{ webui_source_dir }}"
+  when: webui_build_from_source
+  changed_when: true
+
+- name: Stop existing WebUI container
+  ansible.builtin.command:
+    cmd: podman rm -f {{ webui_container_name }}
+  failed_when: false
+  changed_when: true
+
+- name: Run WebUI container
+  ansible.builtin.command:
+    cmd: >
+      podman run -d
+      --name {{ webui_container_name }}
+      --restart always
+      -p {{ webui_port }}:8080
+      -e CA_TARGET_URL={{ webui_ca_target_url }}
+      {{ webui_container_image }}
+  changed_when: true
+
+- name: Open firewall for WebUI
+  ansible.posix.firewalld:
+    port: "{{ webui_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+  ignore_errors: true
+
+- name: Verify WebUI is responding
+  ansible.builtin.uri:
+    url: "http://localhost:{{ webui_port }}"
+    status_code: 200
+    return_content: false
+  register: webui_check
+  retries: 5
+  delay: 3
+  until: webui_check.status == 200

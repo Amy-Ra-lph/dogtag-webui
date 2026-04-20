@@ -1,0 +1,10 @@
+[general]
+config_version = 2
+
+[slapd]
+instance_name = {{ dogtag_instance_name }}
+root_password = {{ dogtag_ds_password }}
+port = {{ dogtag_ds_port }}
+
+[backend-userroot]
+suffix = {{ dogtag_ds_base_dn }}

@@ -1,0 +1,9 @@
+---
+# Provision Dogtag CA only
+# Usage: ansible-playbook -i inventory/hosts.yml provision-ca.yml
+
+- name: Provision Dogtag CA
+  hosts: pki_servers
+  become: true
+  roles:
+    - dogtag_ca

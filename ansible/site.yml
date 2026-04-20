@@ -1,0 +1,15 @@
+---
+# Full deployment: Dogtag CA + WebUI
+# Usage: ansible-playbook -i inventory/hosts.yml site.yml
+
+- name: Provision Dogtag CA
+  hosts: pki_servers
+  become: true
+  roles:
+    - dogtag_ca
+
+- name: Deploy Dogtag WebUI
+  hosts: webui_servers
+  become: true
+  roles:
+    - dogtag_webui
