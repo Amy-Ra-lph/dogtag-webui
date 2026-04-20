@@ -16,6 +16,17 @@ const BASE_TITLE = "Dogtag PKI";
 
 export const navigationRoutes: NavSection[] = [
   {
+    label: "Overview",
+    items: [
+      {
+        label: "Dashboard",
+        group: "dashboard",
+        path: "/",
+        title: `${BASE_TITLE} - Dashboard`,
+      },
+    ],
+  },
+  {
     label: "PKI Management",
     items: [
       {
