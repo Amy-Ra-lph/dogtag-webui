@@ -13,11 +13,17 @@ import {
   SearchInput,
   FormSelect,
   FormSelectOption,
+  Label,
 } from "@patternfly/react-core";
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 import { useNavigate } from "react-router";
 import BreadcrumbLayout from "src/components/BreadcrumbLayout";
-import { useGetCertificatesQuery } from "src/services/dogtagApi";
+import {
+  useGetCertificatesQuery,
+  dogtagApi,
+  type CertInfo,
+} from "src/services/dogtagApi";
+import { useAppDispatch } from "src/store/store";
 import StatusLabel from "src/components/StatusLabel";
 import ErrorBanner from "src/components/ErrorBanner";
 
@@ -29,7 +35,36 @@ function formatDate(epoch: number): string {
   });
 }
 
+function extractSANs(prettyPrint: string): string[] {
+  const sans: string[] = [];
+  const lines = prettyPrint.split("\n");
+  let inSAN = false;
+  for (const line of lines) {
+    if (line.includes("Subject Alternative Name")) {
+      inSAN = true;
+      continue;
+    }
+    if (inSAN) {
+      const dns = line.match(/DNSName:\s*(.+)/);
+      if (dns) sans.push(dns[1].trim());
+      const ip = line.match(/IPAddress:\s*(.+)/);
+      if (ip) sans.push(ip[1].trim());
+      const email = line.match(/RFC822Name:\s*(.+)/);
+      if (email) sans.push(email[1].trim());
+      if (
+        line.includes("Identifier:") &&
+        !line.includes("Subject Alternative")
+      ) {
+        inSAN = false;
+      }
+    }
+  }
+  return sans;
+}
+
 const PAGE_SIZE = 20;
+
+type SearchField = "subjectDN" | "san";
 
 const Certificates: React.FC = () => {
   React.useEffect(() => {
@@ -37,9 +72,15 @@ const Certificates: React.FC = () => {
   }, []);
 
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const [page, setPage] = React.useState(1);
   const [search, setSearch] = React.useState("");
+  const [searchField, setSearchField] =
+    React.useState<SearchField>("subjectDN");
   const [statusFilter, setStatusFilter] = React.useState("ALL");
+
+  const [sanMap, setSanMap] = React.useState<Record<string, string[]>>({});
+  const [sanLoading, setSanLoading] = React.useState(false);
 
   const { data, isLoading, error } = useGetCertificatesQuery({
     start: (page - 1) * PAGE_SIZE,
@@ -48,12 +89,56 @@ const Certificates: React.FC = () => {
   const certs = data?.entries ?? [];
   const total = data?.total ?? 0;
 
+  React.useEffect(() => {
+    if (searchField !== "san" || certs.length === 0) return;
+
+    const uncached = certs.filter((c) => !(c.id in sanMap));
+    if (uncached.length === 0) return;
+
+    let cancelled = false;
+    setSanLoading(true);
+
+    Promise.all(
+      uncached.map((c) =>
+        dispatch(dogtagApi.endpoints.getAgentCert.initiate(c.id))
+          .unwrap()
+          .then((detail) => ({
+            id: c.id,
+            sans: extractSANs(detail.PrettyPrint ?? ""),
+          }))
+          .catch(() => ({ id: c.id, sans: [] as string[] })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setSanMap((prev) => {
+        const next = { ...prev };
+        for (const r of results) next[r.id] = r.sans;
+        return next;
+      });
+      setSanLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchField, certs, dispatch]);
+
   const filtered = certs.filter((cert) => {
     if (statusFilter !== "ALL" && cert.Status !== statusFilter) return false;
-    if (search && !cert.SubjectDN.toLowerCase().includes(search.toLowerCase()))
-      return false;
+    if (search) {
+      const term = search.replace(/\*/g, "").toLowerCase();
+      if (!term) return true;
+      if (searchField === "subjectDN") {
+        if (!cert.SubjectDN.toLowerCase().includes(term)) return false;
+      } else {
+        const sans = sanMap[cert.id] ?? [];
+        if (!sans.some((s) => s.toLowerCase().includes(term))) return false;
+      }
+    }
     return true;
   });
+
+  const sanSearchActive = searchField === "san" && !!search;
 
   return (
     <>
@@ -68,8 +153,22 @@ const Certificates: React.FC = () => {
         <Toolbar>
           <ToolbarContent>
             <ToolbarItem>
+              <FormSelect
+                value={searchField}
+                onChange={(_e, val) => setSearchField(val as SearchField)}
+                aria-label="Search field"
+              >
+                <FormSelectOption value="subjectDN" label="Subject DN" />
+                <FormSelectOption value="san" label="SAN" />
+              </FormSelect>
+            </ToolbarItem>
+            <ToolbarItem>
               <SearchInput
-                placeholder="Filter by Subject DN"
+                placeholder={
+                  searchField === "subjectDN"
+                    ? "Filter by Subject DN"
+                    : "Filter by SAN (DNS name, IP, email)"
+                }
                 value={search}
                 onChange={(_e, val) => setSearch(val)}
                 onClear={() => setSearch("")}
@@ -89,7 +188,9 @@ const Certificates: React.FC = () => {
             </ToolbarItem>
             <ToolbarItem variant="pagination" align={{ default: "alignEnd" }}>
               <Pagination
-                itemCount={total}
+                itemCount={
+                  filtered.length < certs.length ? filtered.length : total
+                }
                 perPage={PAGE_SIZE}
                 page={page}
                 onSetPage={(_e, p) => setPage(p)}
@@ -98,7 +199,7 @@ const Certificates: React.FC = () => {
             </ToolbarItem>
           </ToolbarContent>
         </Toolbar>
-        {isLoading ? (
+        {isLoading || (sanSearchActive && sanLoading) ? (
           <Bullseye>
             <Spinner size="xl" />
           </Bullseye>
@@ -108,6 +209,7 @@ const Certificates: React.FC = () => {
               <Tr>
                 <Th>Serial Number</Th>
                 <Th>Subject DN</Th>
+                {sanSearchActive && <Th>SANs</Th>}
                 <Th>Status</Th>
                 <Th>Not Valid Before</Th>
                 <Th>Not Valid After</Th>
@@ -118,7 +220,7 @@ const Certificates: React.FC = () => {
             <Tbody>
               {filtered.length === 0 ? (
                 <Tr>
-                  <Td colSpan={7}>
+                  <Td colSpan={sanSearchActive ? 8 : 7}>
                     <Content component="small">No certificates found.</Content>
                   </Td>
                 </Tr>
@@ -127,6 +229,15 @@ const Certificates: React.FC = () => {
                   <Tr key={cert.id}>
                     <Td>{cert.id}</Td>
                     <Td>{cert.SubjectDN}</Td>
+                    {sanSearchActive && (
+                      <Td>
+                        {(sanMap[cert.id] ?? []).map((san) => (
+                          <Label key={san} isCompact className="pf-v6-u-mr-xs">
+                            {san}
+                          </Label>
+                        ))}
+                      </Td>
+                    )}
                     <Td>
                       <StatusLabel status={cert.Status} />
                     </Td>
