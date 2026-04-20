@@ -499,7 +499,10 @@ export function extractApiError(err: unknown, fallback: string): string {
   if (err && typeof err === "object" && "data" in err) {
     const data = (err as { data: unknown }).data;
     if (data && typeof data === "object" && "Message" in data) {
-      return String((data as { Message: string }).Message);
+      const msg = String((data as { Message: string }).Message);
+      if (msg.length > 200) return fallback;
+      if (/exception|stack|trace|\.java|\.class/i.test(msg)) return fallback;
+      return msg;
     }
   }
   return fallback;

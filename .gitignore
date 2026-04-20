@@ -23,3 +23,7 @@ yarn-error.log*
 
 # Client certificates (sensitive)
 /certs/
+
+# Ansible vault files
+ansible/group_vars/*/vault.yml
+ansible/*.retry

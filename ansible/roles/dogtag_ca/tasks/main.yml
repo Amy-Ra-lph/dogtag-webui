@@ -1,4 +1,13 @@
 ---
+- name: Validate required passwords are set
+  ansible.builtin.assert:
+    that:
+      - dogtag_admin_password is defined
+      - dogtag_admin_password | length > 0
+      - dogtag_ds_password is defined
+      - dogtag_ds_password | length > 0
+    fail_msg: "dogtag_admin_password and dogtag_ds_password must be set (use ansible-vault)"
+
 - name: Install 389 Directory Server
   ansible.builtin.dnf:
     name:
@@ -16,25 +25,32 @@
     path: "/etc/dirsrv/slapd-{{ dogtag_instance_name }}"
   register: ds_instance
 
-- name: Create DS instance
-  ansible.builtin.command:
-    cmd: >
-      dscreate create-template /tmp/ds-setup.inf
+- name: Create secure temp file for DS config
+  ansible.builtin.tempfile:
+    suffix: .inf
+  register: ds_tmpfile
   when: not ds_instance.stat.exists
-  changed_when: true
 
 - name: Configure DS instance template
   ansible.builtin.template:
     src: ds-setup.inf.j2
-    dest: /tmp/ds-setup.inf
+    dest: "{{ ds_tmpfile.path }}"
     mode: "0600"
   when: not ds_instance.stat.exists
+  no_log: true
 
 - name: Install DS instance
   ansible.builtin.command:
-    cmd: dscreate from-file /tmp/ds-setup.inf
+    cmd: "dscreate from-file {{ ds_tmpfile.path }}"
   when: not ds_instance.stat.exists
   changed_when: true
+  no_log: true
+
+- name: Remove DS temp config
+  ansible.builtin.file:
+    path: "{{ ds_tmpfile.path }}"
+    state: absent
+  when: ds_tmpfile.path is defined
 
 - name: Start and enable Directory Server
   ansible.builtin.systemd:
@@ -47,27 +63,33 @@
     path: "/var/lib/pki/{{ dogtag_instance_name }}"
   register: pki_instance
 
+- name: Create secure temp file for PKI config
+  ansible.builtin.tempfile:
+    suffix: .cfg
+  register: pki_tmpfile
+  when: not pki_instance.stat.exists
+
 - name: Deploy PKI configuration
   ansible.builtin.template:
     src: ca.cfg.j2
-    dest: /tmp/ca.cfg
+    dest: "{{ pki_tmpfile.path }}"
     mode: "0600"
   when: not pki_instance.stat.exists
+  no_log: true
 
 - name: Install PKI CA instance
   ansible.builtin.command:
-    cmd: pkispawn -f /tmp/ca.cfg -s CA
+    cmd: "pkispawn -f {{ pki_tmpfile.path }} -s CA"
   when: not pki_instance.stat.exists
   changed_when: true
+  no_log: true
   notify: restart pki-tomcatd
 
-- name: Remove temporary config files
+- name: Remove PKI temp config
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ pki_tmpfile.path }}"
     state: absent
-  loop:
-    - /tmp/ca.cfg
-    - /tmp/ds-setup.inf
+  when: pki_tmpfile.path is defined
 
 - name: Start and enable PKI server
   ansible.builtin.systemd:
@@ -75,18 +97,35 @@
     state: started
     enabled: true
 
+- name: Create secure temp file for PKCS12 password
+  ansible.builtin.tempfile:
+    suffix: .pass
+  register: pass_tmpfile
+
+- name: Write PKCS12 password to temp file
+  ansible.builtin.copy:
+    content: "{{ dogtag_admin_password }}"
+    dest: "{{ pass_tmpfile.path }}"
+    mode: "0600"
+  no_log: true
+
 - name: Export admin cert to PEM
   ansible.builtin.shell: |
     mkdir -p "$(dirname {{ dogtag_admin_cert_pem }})"
     openssl pkcs12 -in {{ dogtag_admin_cert_path }} \
       -clcerts -nokeys -out {{ dogtag_admin_cert_pem }} \
-      -passin pass:{{ dogtag_admin_password }}
+      -passin file:{{ pass_tmpfile.path }}
     openssl pkcs12 -in {{ dogtag_admin_cert_path }} \
       -nocerts -nodes -out {{ dogtag_admin_key_pem }} \
-      -passin pass:{{ dogtag_admin_password }}
+      -passin file:{{ pass_tmpfile.path }}
     chmod 600 {{ dogtag_admin_cert_pem }} {{ dogtag_admin_key_pem }}
   args:
     creates: "{{ dogtag_admin_cert_pem }}"
+
+- name: Remove password temp file
+  ansible.builtin.file:
+    path: "{{ pass_tmpfile.path }}"
+    state: absent
 
 - name: Open firewall for HTTPS
   ansible.posix.firewalld:
@@ -94,4 +133,4 @@
     permanent: true
     state: enabled
     immediate: true
-  ignore_errors: true
+  failed_when: false

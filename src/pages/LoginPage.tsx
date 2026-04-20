@@ -17,9 +17,9 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { status, error } = useAppSelector((s) => s.auth);
 
+  const isDemoMode = import.meta.env.DEV;
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [showPassword, setShowPassword] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,10 +35,13 @@ const LoginPage: React.FC = () => {
       loginSubtitle="Enter your credentials to access the Certificate Authority."
       textContent="Dogtag PKI Certificate System provides enterprise-class certificate lifecycle management including issuance, revocation, and renewal."
       signUpForAccountMessage={
-        <span>
-          Demo accounts: <strong>caadmin</strong> (admin+agent),{" "}
-          <strong>agent1</strong> (agent), <strong>auditor1</strong> (auditor)
-        </span>
+        isDemoMode ? (
+          <span>
+            Demo accounts: <strong>caadmin</strong> / Secret.123,{" "}
+            <strong>agent1</strong> / agent123, <strong>auditor1</strong> /
+            auditor123
+          </span>
+        ) : undefined
       }
     >
       <LoginForm

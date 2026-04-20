@@ -2,8 +2,9 @@ dogtag_ca_hostname: "{{ ansible_fqdn }}"
 dogtag_ca_https_port: 8443
 dogtag_ca_http_port: 8080
 dogtag_ds_port: 389
-dogtag_ds_password: "Secret.123"
-dogtag_admin_password: "Secret.123"
+# Passwords must be provided via vault — no defaults
+# dogtag_ds_password: (required)
+# dogtag_admin_password: (required)
 dogtag_admin_email: "caadmin@{{ dogtag_ca_hostname }}"
 dogtag_security_domain: "Example Security Domain"
 dogtag_ca_subject: "CN=CA Signing Certificate,O=Example"
