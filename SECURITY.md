@@ -1,53 +1,81 @@
-# Security Audit — Open Findings
+# Security Audit — Findings
 
-Last audited: 2026-04-20
+Last audited: 2026-04-21
 
-20 of 24 findings from the initial security audit have been resolved. The remaining four require architectural or deployment changes beyond code fixes.
+## Architecture
 
-## #8 — HTTP Container (HIGH)
+The WebUI runs an **unprivileged backend** (Fastify) behind nginx. No agent or admin certificates are mounted in the container. Each user authenticates with their own credentials:
 
-**Issue:** The container nginx serves on plain HTTP (port 8080). Session cookies and API responses are transmitted unencrypted.
+- **Password flow:** Backend authenticates to Dogtag via Basic auth, stores the resulting JSESSIONID per user
+- **Certificate flow:** nginx handles mTLS (`ssl_verify_client optional_no_ca`), passes the client cert PEM to the backend via `X-SSL-Client-Cert` header, backend uses it to establish a Dogtag session
 
-**Risk:** An attacker on the network can intercept session tokens, certificate data, and user credentials in transit.
+All Dogtag sessions are stored in server memory with automatic expiry (2 hours). No credentials are written to disk.
 
-**Recommendation:** Deploy behind a TLS-terminating ingress or load balancer. In OpenShift, an HTTPS Route handles this automatically. For standalone deployments, mount TLS certificates into the container and add `ssl_certificate` / `ssl_certificate_key` directives to the nginx config. Add `Secure` flag to all cookies once HTTPS is in place.
+## Open Findings
 
-## #11 — Single Admin Certificate for All Users (HIGH)
+### #1 — TLS Validation Disabled on CA Backend Connection (HIGH)
 
-**Issue:** The proxy (Vite dev server and nginx) authenticates to the Dogtag CA using a single admin client certificate. All WebUI users inherit this admin identity at the CA level regardless of their WebUI role. Server-side RBAC blocks unauthorized routes at the proxy layer, but if the proxy is bypassed, the CA sees every request as the admin.
+**Issue:** The CA proxy (`caProxy.ts`) and auth helpers (`dogtagAuth.ts`) set `rejectUnauthorized: false` on HTTPS connections to Dogtag. This allows MITM on the backend-to-CA path.
 
-**Risk:** A user with "auditor" role could craft direct API calls to the proxy that reach admin-level CA endpoints if the RBAC route map has gaps. If the proxy is bypassed entirely (e.g., via network access to port 8443), full CA admin access is available.
+**Risk:** An attacker on the internal network could intercept/modify requests between the WebUI backend and Dogtag CA.
 
-**Short-term mitigation (IMPLEMENTED):**
-- The proxy now defaults to an agent certificate (`certs/agent.cert`) instead of the admin cert. The Ansible role creates a dedicated agent cert during CA provisioning. The container nginx config mounts the agent cert at `/etc/nginx/certs/`.
-- Firewall the CA port (8443) so only the proxy host can reach it.
+**Mitigation:** This is expected for PoC deployments where the CA uses a self-signed certificate. For production, set `rejectUnauthorized: true` and provide the CA chain via the `NODE_EXTRA_CA_CERTS` environment variable or a `CA_BUNDLE` path.
 
-**Long-term fix:**
-- Configure Dogtag for LDAP password authentication so the proxy can forward per-user credentials via Basic auth headers.
-- Or implement browser-level mTLS where each user presents their own client certificate, and nginx passes it through to the CA.
+### #2 — Rate Limit Bypass via X-Forwarded-For Spoofing (HIGH)
 
-## #18 — Unencrypted LDAP Connection (MEDIUM)
+**Issue:** Rate limiting uses the `X-Forwarded-For` header to identify client IPs. If a request bypasses nginx, the header can be spoofed to evade rate limits.
 
-**Issue:** The 389 Directory Server instance is configured on port 389 (plaintext LDAP). The CA-to-DS connection carries PKI data, certificates, and keys unencrypted.
+**Risk:** Brute-force password attacks could bypass the 5-attempt limit.
 
-**Risk:** An attacker on the same network segment can intercept LDAP traffic containing sensitive PKI data.
+**Recommendation:** Configure nginx to strip/overwrite `X-Forwarded-For` with `proxy_set_header X-Forwarded-For $remote_addr`. The Fastify backend should only trust XFF from known proxy IPs.
 
-**Recommendation:** Configure LDAPS (port 636) in the Ansible provisioning:
+### #3 — Cached Roles Not Re-Validated (HIGH)
 
-1. Generate a DS server certificate during setup.
-2. Update `ds-setup.inf.j2` to configure the secure port.
-3. Set `pki_ds_ldaps_port = 636` and `pki_ds_secure_connection = True` in `ca.cfg.j2`.
-4. Update `dogtag_ds_port` default to 636 in the role defaults.
+**Issue:** User roles are cached in the session for 2 hours. If an admin revokes a user's roles in LDAP/Dogtag, the cached session continues to grant access until expiry.
 
-## #19 — unsafe-inline in CSP for Styles (LOW)
+**Risk:** Delayed revocation of access for up to 2 hours.
 
-**Issue:** The Content Security Policy includes `style-src 'unsafe-inline'` because PatternFly 6 uses inline styles extensively. This weakens CSP protection against CSS injection.
+**Recommendation:** Reduce session TTL to 30 minutes for PKI systems. Periodically re-validate roles by calling Dogtag's `/ca/rest/account/login` and comparing returned roles.
 
-**Risk:** Low. An attacker who already has an XSS vector could inject inline styles to restyle the UI (e.g., overlay fake buttons, hide warnings). However, there are no XSS vectors in this codebase — all dynamic content is rendered through React's safe JSX interpolation, with no use of `dangerouslySetInnerHTML`. This is a defense-in-depth gap, not an exploitable vulnerability on its own.
+### #4 — No Audit Logging for Auth Events (MEDIUM)
 
-**Recommendation:** Accept as known risk. PatternFly 6 requires inline styles and cannot function without `unsafe-inline`. Revisit if PatternFly adds CSP nonce support in a future release. A Vite plugin (e.g., `vite-plugin-csp`) could add nonces at build time, but adds complexity for marginal gain given the low residual risk.
+**Issue:** Failed login attempts are rate-limited but not logged to a persistent audit log. Successful logins are also not logged.
 
-## Resolved Findings Summary
+**Risk:** No audit trail for security investigations or compliance.
+
+**Recommendation:** Log all auth events (success/failure) with timestamp, username, IP, and auth method to a structured log file.
+
+### #5 — No Rate Limiting on API Endpoints (MEDIUM)
+
+**Issue:** Only the login endpoint is rate-limited. Certificate revocation, approval, and enrollment endpoints have no rate limiting.
+
+**Risk:** An authenticated attacker could mass-revoke certificates or spam enrollment requests.
+
+**Recommendation:** Add per-session, per-endpoint rate limiting for write operations.
+
+### #6 — No CA Verification at nginx Layer (MEDIUM)
+
+**Issue:** nginx uses `ssl_verify_client optional_no_ca`, accepting any client certificate without CA verification. Certificate validation happens at Dogtag, not nginx.
+
+**Risk:** Malformed or self-signed client certs are forwarded to the backend. Dogtag rejects them, but the backend processes the request up to that point.
+
+**Recommendation:** For production, use `ssl_verify_client optional` with `ssl_client_certificate` pointing to the trusted CA chain. This validates certs at the nginx layer before they reach the backend.
+
+### #7 — Missing Clear-Site-Data Header on Logout (MEDIUM)
+
+**Issue:** Logout clears the session cookie but does not send the `Clear-Site-Data` header. Browser cache or service workers may retain stale data.
+
+**Recommendation:** Add `Clear-Site-Data: "cache", "cookies", "storage"` header on the logout response.
+
+### #19 — unsafe-inline in CSP for Styles (LOW — ACCEPTED RISK)
+
+**Issue:** The Content Security Policy includes `style-src 'unsafe-inline'` because PatternFly 6 uses inline styles extensively.
+
+**Risk:** Low. An attacker with an XSS vector could inject inline styles to restyle the UI. However, no XSS vectors exist — all dynamic content uses React's safe JSX interpolation with no `dangerouslySetInnerHTML`.
+
+**Status:** Accepted risk. PatternFly 6 requires inline styles. Revisit if PatternFly adds CSP nonce support.
+
+## Resolved Findings
 
 | # | Severity | Finding | Resolution |
 |---|----------|---------|------------|
@@ -58,16 +86,19 @@ Last audited: 2026-04-20
 | 5 | HIGH | Root user + no host key checking | Deploy user with become, setting removed |
 | 6 | HIGH | HMAC timing attack | `crypto.timingSafeEqual()` |
 | 7 | HIGH | TLS verify off in nginx | Documented with TODO |
+| 8 | HIGH | HTTP container | TLS on port 8443 with HSTS, HTTP redirect |
 | 9 | HIGH | No Secure cookie flag | Conditional Secure flag behind HTTPS |
 | 10 | HIGH | Dev server on 0.0.0.0 | .env.example defaults to localhost |
-| 12 | MEDIUM | No CSRF protection | Origin/Referer header validation |
+| 11 | HIGH | Single admin cert for all users | **Replaced with per-user auth backend** — Fastify relays each user's own credentials to Dogtag. No agent/admin cert in container. |
+| 12 | MEDIUM | No CSRF protection | SameSite=Strict cookies + Origin validation |
 | 13 | MEDIUM | Temp file race condition | Ansible `tempfile` module |
 | 14 | MEDIUM | No rate limiting on login | 5 attempts per IP per 15-minute window |
 | 15 | MEDIUM | Login page leaks usernames | Gated behind `import.meta.env.DEV` |
 | 16 | MEDIUM | Client-side RBAC only | Server-side route RBAC middleware |
 | 17 | MEDIUM | 8-hour session, no idle timeout | Reduced to 2 hours |
+| 18 | MEDIUM | Unencrypted LDAP | Ansible defaults to LDAPS (port 636) |
 | 20 | LOW | No HSTS header | Added `Strict-Transport-Security` |
 | 21 | LOW | Error messages leak internals | Filter stack traces, cap at 200 chars |
 | 22 | LOW | Source maps in non-prod | Already gated by `!isProd` |
-| 23 | INFO | No session invalidation | Accepted for PoC scope |
+| 23 | INFO | No session invalidation | Implemented with session store + expiry sweep |
 | 24 | INFO | Firewall errors suppressed | Accepted for PoC scope |
