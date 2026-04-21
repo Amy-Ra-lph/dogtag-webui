@@ -45,11 +45,11 @@ export default defineConfig(({ mode }) => {
 
   const certPath = path.resolve(
     __dirname,
-    env.VITE_CA_CERT_PATH || "certs/admin.cert",
+    env.VITE_CA_CERT_PATH || "certs/agent.cert",
   );
   const keyPath = path.resolve(
     __dirname,
-    env.VITE_CA_KEY_PATH || "certs/admin.key",
+    env.VITE_CA_KEY_PATH || "certs/agent.key",
   );
 
   const hasCerts = fs.existsSync(certPath) && fs.existsSync(keyPath);

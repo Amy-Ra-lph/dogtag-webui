@@ -18,8 +18,8 @@ Last audited: 2026-04-20
 
 **Risk:** A user with "auditor" role could craft direct API calls to the proxy that reach admin-level CA endpoints if the RBAC route map has gaps. If the proxy is bypassed entirely (e.g., via network access to port 8443), full CA admin access is available.
 
-**Short-term mitigation:**
-- Use a least-privilege certificate (agent-only) for the proxy instead of the admin cert.
+**Short-term mitigation (IMPLEMENTED):**
+- The proxy now defaults to an agent certificate (`certs/agent.cert`) instead of the admin cert. The Ansible role creates a dedicated agent cert during CA provisioning. The container nginx config mounts the agent cert at `/etc/nginx/certs/`.
 - Firewall the CA port (8443) so only the proxy host can reach it.
 
 **Long-term fix:**

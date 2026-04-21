@@ -15,3 +15,6 @@ dogtag_ds_base_dn: "o={{ dogtag_instance_name }}-CA"
 dogtag_admin_cert_path: "/root/.dogtag/{{ dogtag_instance_name }}/ca_admin_cert.p12"
 dogtag_admin_cert_pem: "/root/.dogtag/{{ dogtag_instance_name }}/ca/admin.cert"
 dogtag_admin_key_pem: "/root/.dogtag/{{ dogtag_instance_name }}/ca/admin.key"
+dogtag_agent_cert_pem: "/root/.dogtag/{{ dogtag_instance_name }}/ca/agent.cert"
+dogtag_agent_key_pem: "/root/.dogtag/{{ dogtag_instance_name }}/ca/agent.key"
+dogtag_create_agent_cert: true

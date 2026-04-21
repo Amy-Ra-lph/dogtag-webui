@@ -138,6 +138,29 @@
     path: "{{ pass_tmpfile.path }}"
     state: absent
 
+- name: Check if agent cert exists
+  ansible.builtin.stat:
+    path: "{{ dogtag_agent_cert_pem }}"
+  register: agent_cert
+  when: dogtag_create_agent_cert
+
+- name: Create agent certificate for WebUI proxy
+  ansible.builtin.script:
+    cmd: create-agent-cert.sh
+  args:
+    creates: "{{ dogtag_agent_cert_pem }}"
+  environment:
+    PKI_INSTANCE: "{{ dogtag_instance_name }}"
+    PKI_HTTPS_PORT: "{{ dogtag_ca_https_port }}"
+    PKI_SECURITY_DOMAIN: "{{ dogtag_security_domain }}"
+    AGENT_CERT_PEM: "{{ dogtag_agent_cert_pem }}"
+    AGENT_KEY_PEM: "{{ dogtag_agent_key_pem }}"
+  when:
+    - dogtag_create_agent_cert
+    - not (agent_cert.stat.exists | default(false))
+  changed_when: true
+  no_log: true
+
 - name: Open firewall for HTTPS
   ansible.posix.firewalld:
     port: "{{ dogtag_ca_https_port }}/tcp"

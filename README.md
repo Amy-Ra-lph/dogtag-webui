@@ -83,13 +83,15 @@ npm run dev
 # Build
 podman build -t dogtag-webui .
 
-# Run (point to your CA)
+# Run (mount agent cert for least-privilege CA access)
 podman run -d -p 8080:8080 \
   -e CA_TARGET_URL=https://ca.example.com:8443 \
+  -v /path/to/agent.cert:/etc/nginx/certs/agent.cert:ro,z \
+  -v /path/to/agent.key:/etc/nginx/certs/agent.key:ro,z \
   dogtag-webui
 ```
 
-The container uses a multi-stage build: UBI 9 nodejs-18-minimal for the build stage, UBI 9 nginx-122 for runtime. It runs as non-root (UID 1001).
+The container uses a multi-stage build: UBI 9 nodejs-18-minimal for the build stage, UBI 9 nginx-122 for runtime. It runs as non-root (UID 1001). The nginx proxy authenticates to the CA using a mounted agent certificate (not the admin cert) for least-privilege access.
 
 ### Ansible
 
@@ -109,8 +111,8 @@ Full provisioning playbooks for 389 DS + Dogtag CA and the WebUI container are i
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `VITE_CA_TARGET_URL` | `https://localhost:8443` | Dogtag CA backend URL |
-| `VITE_CA_CERT_PATH` | `certs/admin.cert` | Client certificate for CA proxy |
-| `VITE_CA_KEY_PATH` | `certs/admin.key` | Client key for CA proxy |
+| `VITE_CA_CERT_PATH` | `certs/agent.cert` | Client certificate for CA proxy (use agent, not admin) |
+| `VITE_CA_KEY_PATH` | `certs/agent.key` | Client key for CA proxy |
 | `VITE_DEV_HOST` | `localhost` | Dev server bind address |
 | `CA_TARGET_URL` | `https://localhost:8443` | CA URL for container nginx proxy |
 | `VITE_LDAP_URL` | *(unset = demo mode)* | LDAP server URL (e.g., `ldap://localhost:389`) |

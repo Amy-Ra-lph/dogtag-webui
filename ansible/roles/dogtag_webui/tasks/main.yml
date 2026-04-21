@@ -36,6 +36,8 @@
       --restart always
       -p {{ webui_port }}:8080
       -e CA_TARGET_URL={{ webui_ca_target_url }}
+      -v {{ webui_agent_cert }}:/etc/nginx/certs/agent.cert:ro,z
+      -v {{ webui_agent_key }}:/etc/nginx/certs/agent.key:ro,z
       {{ webui_container_image }}
   changed_when: true
 

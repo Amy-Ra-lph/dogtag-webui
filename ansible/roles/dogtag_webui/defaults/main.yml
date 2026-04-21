@@ -6,3 +6,5 @@ webui_build_from_source: true
 webui_source_dir: "/opt/dogtag-webui"
 webui_git_repo: "https://gitlab.cee.redhat.com/afarley/dogtag-webui.git"
 webui_git_version: "main"
+webui_agent_cert: "/root/.dogtag/pki-tomcat/ca/agent.cert"
+webui_agent_key: "/root/.dogtag/pki-tomcat/ca/agent.key"
