@@ -27,3 +27,4 @@ yarn-error.log*
 # Ansible vault files
 ansible/group_vars/*/vault.yml
 ansible/*.retry
+server/dist/
