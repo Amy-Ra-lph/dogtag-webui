@@ -1,0 +1,68 @@
+# Example SPIRE Server configuration using the Dogtag UpstreamAuthority plugin.
+#
+# This replaces the "disk" upstream authority that uses static key files.
+# The plugin obtains intermediate CA certificates from Dogtag PKI via mTLS,
+# chaining SPIRE's trust under the IPA CA hierarchy.
+#
+# Prerequisites:
+#   1. Dogtag certificate profile "caSpireIntermediateCA" imported and enabled
+#   2. Service principal created: ipa service-add spire/spire-server.example.com
+#   3. Client cert issued to the service principal
+#   4. CA cert (IPA root) available at ca_cert_path
+
+server {
+    bind_address = "0.0.0.0"
+    bind_port    = "8081"
+    trust_domain = "example.com"
+
+    ca_ttl = "24h"
+    default_x509_svid_ttl = "1h"
+
+    data_dir = "/opt/spire/data/server"
+    log_level = "INFO"
+}
+
+plugins {
+    DataStore "sql" {
+        plugin_data {
+            database_type = "sqlite3"
+            connection_string = "/opt/spire/data/server/datastore.sqlite3"
+        }
+    }
+
+    KeyManager "disk" {
+        plugin_data {
+            keys_path = "/opt/spire/data/server/keys.json"
+        }
+    }
+
+    NodeAttestor "join_token" {
+        plugin_data {}
+    }
+
+    UpstreamAuthority "dogtag" {
+        plugin_cmd  = "/opt/spire/plugins/upstream-authority-dogtag"
+        plugin_data {
+            # Dogtag CA REST API endpoint (IPA default: port 8443)
+            dogtag_url = "https://ipa.example.com:8443"
+
+            # Client certificate for mTLS authentication to Dogtag.
+            # This should be a dedicated service cert with enrollment-only permissions.
+            client_cert_path = "/opt/spire/conf/server/dogtag-client.crt"
+            client_key_path  = "/opt/spire/conf/server/dogtag-client.key"
+
+            # CA certificate to verify Dogtag's TLS server certificate
+            ca_cert_path = "/opt/spire/conf/server/ca.crt"
+
+            # Dogtag certificate profile for intermediate CA issuance.
+            # Must have: basicConstraints CA:TRUE pathlen:1, keyUsage keyCertSign+cRLSign
+            profile_id = "caSpireIntermediateCA"
+
+            # How often to poll Dogtag when waiting for cert approval (if not auto-approved)
+            poll_interval = "10s"
+
+            # Maximum time for any single Dogtag API call
+            request_timeout = "60s"
+        }
+    }
+}

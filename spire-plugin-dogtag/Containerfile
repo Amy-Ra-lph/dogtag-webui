@@ -1,0 +1,23 @@
+# Multi-stage build: compiles the Go plugin, then copies the binary
+# into the official SPIRE Server image. No Go toolchain ships.
+
+# --- Build stage ---
+FROM registry.access.redhat.com/ubi9/go-toolset:latest AS builder
+
+USER 0
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags="-s -w" \
+    -o /build/upstream-authority-dogtag \
+    ./cmd/plugin
+
+# --- Runtime stage ---
+FROM ghcr.io/spiffe/spire-server:1.11.3
+
+COPY --from=builder /build/upstream-authority-dogtag /opt/spire/plugins/upstream-authority-dogtag
+
+# Default entrypoint from the SPIRE image is already spire-server
