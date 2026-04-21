@@ -76,21 +76,36 @@ export default defineConfig(({ mode }) => {
     server: {
       host: env.VITE_DEV_HOST || "localhost",
       port: 5173,
-      proxy: {
-        "/ca/rest": {
-          target: proxyTarget,
-          changeOrigin: true,
-          secure: isProd,
-          agent,
-          cookieDomainRewrite: "",
-          cookiePathRewrite: "/",
-          configure: (proxy) => {
-            if (!isProd) {
-              proxy.on("proxyRes", stripSecureFromCookies);
-            }
+      proxy: env.VITE_BACKEND_URL
+        ? {
+            "/ca/rest": {
+              target: env.VITE_BACKEND_URL,
+              changeOrigin: true,
+            },
+            "/webui/api": {
+              target: env.VITE_BACKEND_URL,
+              changeOrigin: true,
+            },
+            "/rekor/api": {
+              target: env.VITE_BACKEND_URL,
+              changeOrigin: true,
+            },
+          }
+        : {
+            "/ca/rest": {
+              target: proxyTarget,
+              changeOrigin: true,
+              secure: isProd,
+              agent,
+              cookieDomainRewrite: "",
+              cookiePathRewrite: "/",
+              configure: (proxy) => {
+                if (!isProd) {
+                  proxy.on("proxyRes", stripSecureFromCookies);
+                }
+              },
+            },
           },
-        },
-      },
     },
     test: {
       projects: [

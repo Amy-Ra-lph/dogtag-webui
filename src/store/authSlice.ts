@@ -51,6 +51,33 @@ export const checkSession = createAsyncThunk(
   },
 );
 
+export const certLogin = createAsyncThunk(
+  "auth/certLogin",
+  async (_, { rejectWithValue }) => {
+    const res = await fetch("/webui/api/auth/cert-login", {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) return rejectWithValue("Certificate authentication failed");
+    return (await res.json()) as AuthUser;
+  },
+);
+
+export const checkCertAvailable = createAsyncThunk(
+  "auth/checkCert",
+  async () => {
+    const res = await fetch("/webui/api/auth/cert-info", {
+      credentials: "include",
+    });
+    if (!res.ok) return { hasCert: false, subjectDN: null, verified: false };
+    return (await res.json()) as {
+      hasCert: boolean;
+      subjectDN: string | null;
+      verified: boolean;
+    };
+  },
+);
+
 const authSlice = createSlice({
   name: "auth",
   initialState,
@@ -83,6 +110,20 @@ const authSlice = createSlice({
       })
       .addCase(checkSession.rejected, (state) => {
         state.user = null;
+        state.checked = true;
+      })
+      .addCase(certLogin.pending, (state) => {
+        state.status = "loading";
+        state.error = null;
+      })
+      .addCase(certLogin.fulfilled, (state, action) => {
+        state.status = "idle";
+        state.user = action.payload;
+        state.error = null;
+        state.checked = true;
+      })
+      .addCase(certLogin.rejected, (state) => {
+        state.status = "idle";
         state.checked = true;
       });
   },

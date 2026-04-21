@@ -255,7 +255,7 @@ export interface CertReviewResponse {
 // RTK Query API definition
 // -----------------------------------------------------------------
 
-const rawBaseQuery = fetchBaseQuery({
+const baseQuery = fetchBaseQuery({
   baseUrl: "/ca/rest/",
   credentials: "include",
   timeout: 30_000,
@@ -266,32 +266,9 @@ const rawBaseQuery = fetchBaseQuery({
   },
 });
 
-let sessionEstablished = false;
-
-const baseQueryWithSession: typeof rawBaseQuery = async (
-  args,
-  api,
-  extraOptions,
-) => {
-  if (!sessionEstablished) {
-    await rawBaseQuery("account/login", api, extraOptions);
-    sessionEstablished = true;
-  }
-  const result = await rawBaseQuery(args, api, extraOptions);
-
-  if (result.error && result.error.status === 401) {
-    sessionEstablished = false;
-    await rawBaseQuery("account/login", api, extraOptions);
-    sessionEstablished = true;
-    return rawBaseQuery(args, api, extraOptions);
-  }
-
-  return result;
-};
-
 export const dogtagApi = createApi({
   reducerPath: "dogtagApi",
-  baseQuery: baseQueryWithSession,
+  baseQuery,
   tagTypes: [
     "Certificates",
     "CertRequests",

@@ -2,11 +2,12 @@ import React from "react";
 import {
   LoginPage as PFLoginPage,
   LoginForm,
-  ListVariant,
+  Button,
+  Alert,
 } from "@patternfly/react-core";
 import { useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "src/store/store";
-import { loginUser } from "src/store/authSlice";
+import { loginUser, certLogin, checkCertAvailable } from "src/store/authSlice";
 
 const LoginPage: React.FC = () => {
   React.useEffect(() => {
@@ -20,6 +21,18 @@ const LoginPage: React.FC = () => {
   const isDemoMode = import.meta.env.DEV;
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [certInfo, setCertInfo] = React.useState<{
+    hasCert: boolean;
+    subjectDN: string | null;
+  } | null>(null);
+
+  React.useEffect(() => {
+    dispatch(checkCertAvailable()).then((result) => {
+      if (checkCertAvailable.fulfilled.match(result)) {
+        setCertInfo(result.payload);
+      }
+    });
+  }, [dispatch]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,10 +42,17 @@ const LoginPage: React.FC = () => {
     }
   };
 
+  const handleCertLogin = async () => {
+    const result = await dispatch(certLogin());
+    if (certLogin.fulfilled.match(result)) {
+      navigate("/");
+    }
+  };
+
   return (
     <PFLoginPage
       loginTitle="Log in to Dogtag PKI"
-      loginSubtitle="Enter your credentials to access the Certificate Authority."
+      loginSubtitle="Enter your credentials or use a client certificate."
       textContent="Dogtag PKI Certificate System provides enterprise-class certificate lifecycle management including issuance, revocation, and renewal."
       signUpForAccountMessage={
         isDemoMode ? (
@@ -44,6 +64,28 @@ const LoginPage: React.FC = () => {
         ) : undefined
       }
     >
+      {certInfo?.hasCert && (
+        <Alert
+          variant="info"
+          isInline
+          title="Client certificate detected"
+          style={{ marginBottom: "1rem" }}
+        >
+          <p>
+            {certInfo.subjectDN
+              ? `Certificate: ${certInfo.subjectDN}`
+              : "A client certificate was presented."}
+          </p>
+          <Button
+            variant="primary"
+            onClick={handleCertLogin}
+            isDisabled={status === "loading"}
+            style={{ marginTop: "0.5rem" }}
+          >
+            Log in with certificate
+          </Button>
+        </Alert>
+      )}
       <LoginForm
         showHelperText={status === "failed"}
         helperText={error ?? "Invalid credentials"}
