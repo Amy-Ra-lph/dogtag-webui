@@ -2,10 +2,58 @@ import https from "node:https";
 import http from "node:http";
 import { URL } from "node:url";
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { getSession, updateDogtagCookies } from "./sessionStore.js";
+import { getSession, deleteSession, updateDogtagCookies, updateSessionRoles } from "./sessionStore.js";
 import { checkRouteAccess } from "./authMiddleware.js";
+import { checkDogtagSession } from "./dogtagAuth.js";
+import { caTlsOptions } from "./caTlsConfig.js";
+import { auditLog } from "./auditLog.js";
 
 const CA_TARGET_URL = process.env.CA_TARGET_URL || "https://localhost:8443";
+const ROLE_RECHECK_MS = 5 * 60 * 1000;
+const WRITE_METHODS = new Set(["POST", "PUT", "DELETE", "PATCH"]);
+const API_RATE_LIMIT = 30;
+const API_RATE_WINDOW_MS = 60 * 1000;
+
+const apiRateCounters = new Map<string, { count: number; resetAt: number }>();
+
+function isApiRateLimited(sessionId: string): boolean {
+  const now = Date.now();
+  const entry = apiRateCounters.get(sessionId);
+  if (!entry || entry.resetAt < now) return false;
+  return entry.count >= API_RATE_LIMIT;
+}
+
+function recordApiWrite(sessionId: string): void {
+  const now = Date.now();
+  const entry = apiRateCounters.get(sessionId);
+  if (!entry || entry.resetAt < now) {
+    apiRateCounters.set(sessionId, { count: 1, resetAt: now + API_RATE_WINDOW_MS });
+  } else {
+    entry.count++;
+  }
+}
+
+const apiRateSweepTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [id, entry] of apiRateCounters) {
+    if (entry.resetAt < now) apiRateCounters.delete(id);
+  }
+}, API_RATE_WINDOW_MS);
+apiRateSweepTimer.unref();
+
+const DOGTAG_ROLE_MAP: Record<string, string> = {
+  Administrators: "administrator",
+  "Certificate Manager Agents": "agent",
+  Auditors: "auditor",
+  "Enterprise CA Administrators": "administrator",
+  "Enterprise KRA Administrators": "administrator",
+  "Enterprise OCSP Administrators": "administrator",
+  "Enterprise TKS Administrators": "administrator",
+  "Enterprise TPS Administrators": "administrator",
+  administrator: "administrator",
+  agent: "agent",
+  auditor: "auditor",
+};
 
 function extractSetCookies(
   headers: http.IncomingHttpHeaders,
@@ -26,9 +74,30 @@ export async function caProxyHandler(
     return reply.status(401).send({ error: "Not authenticated" });
   }
 
-  const session = getSession(sessionId);
+  let session = getSession(sessionId);
   if (!session) {
     return reply.status(401).send({ error: "Session expired" });
+  }
+
+  // Re-validate roles if stale
+  const now = Date.now();
+  if (session.dogtagCookies && now - session.lastRoleCheck > ROLE_RECHECK_MS) {
+    const refreshed = await checkDogtagSession(
+      session.dogtagCookies,
+      session.clientCertPem,
+    );
+    if (!refreshed) {
+      deleteSession(sessionId);
+      return reply.status(401).send({ error: "Session expired" });
+    }
+    const newRoles = (refreshed.account.Roles || []).map(
+      (r: string) => DOGTAG_ROLE_MAP[r] || r,
+    ).filter(Boolean);
+    updateSessionRoles(sessionId, newRoles.length > 0 ? newRoles : session.roles);
+    if (refreshed.cookies !== session.dogtagCookies) {
+      updateDogtagCookies(sessionId, refreshed.cookies);
+    }
+    session = getSession(sessionId)!;
   }
 
   const urlPath = request.url;
@@ -36,11 +105,23 @@ export async function caProxyHandler(
     return reply.status(403).send({ error: "Insufficient permissions" });
   }
 
+  // Per-session rate limiting for write operations
+  if (WRITE_METHODS.has(request.method)) {
+    if (isApiRateLimited(sessionId)) {
+      auditLog("api_rate_limited", session.username, request.ip, {
+        method: request.method,
+        path: urlPath,
+      });
+      return reply.status(429).send({ error: "Too many write requests. Try again later." });
+    }
+    recordApiWrite(sessionId);
+  }
+
   const target = new URL(urlPath, CA_TARGET_URL);
   const isHttps = target.protocol === "https:";
 
   const agentOptions: https.AgentOptions = {
-    rejectUnauthorized: false,
+    ...caTlsOptions,
   };
 
   if (session.authMethod === "certificate" && session.clientCertPem) {

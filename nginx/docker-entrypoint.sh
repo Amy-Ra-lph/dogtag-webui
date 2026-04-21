@@ -17,6 +17,11 @@ if [ ! -f /etc/nginx/certs/tls.crt ]; then
     sed -i '/if (-f \/etc\/nginx\/certs\/tls.crt)/,/}/d' "$CONF"
 fi
 
+# Enable client CA verification if CLIENT_CA_CERT is provided
+if [ -n "$CLIENT_CA_CERT" ] && [ -f "$CLIENT_CA_CERT" ]; then
+    sed -i 's|ssl_verify_client optional_no_ca;|ssl_verify_client optional;\n    ssl_client_certificate '"$CLIENT_CA_CERT"';|' "$CONF"
+fi
+
 # Start the Fastify backend
 node /app/server/dist/index.mjs &
 BACKEND_PID=$!

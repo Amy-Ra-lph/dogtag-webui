@@ -63,7 +63,7 @@ A modern web interface for [Dogtag PKI](https://www.dogtagpki.org/) (upstream of
 - **No standing credentials.** The container runs with zero mounted agent or admin certs. Each user authenticates with their own credentials (password or client certificate), and the Fastify backend relays their Dogtag session. Dogtag's native RBAC governs what each user can do.
 - **Dual auth.** Users can authenticate via username/password (forwarded to Dogtag via Basic auth) or via client certificate (mTLS at the nginx layer, cert forwarded to Dogtag for session establishment).
 - **Server-side RBAC.** The backend checks the user's session roles against a URL pattern map before proxying to Dogtag. Client-side nav filtering is cosmetic only — the server enforces access.
-- **In-memory sessions.** Per-user Dogtag sessions are stored in server memory with automatic expiry sweep. No credentials are written to disk.
+- **In-memory sessions.** Per-user Dogtag sessions are stored in server memory with 30-minute TTL, 5-minute role re-validation, and automatic expiry sweep. No credentials are written to disk.
 
 ## Quick Start
 
@@ -145,6 +145,9 @@ Full provisioning playbooks for 389 DS + Dogtag CA and the WebUI container are i
 | `CA_TARGET_URL` | `https://localhost:8443` | Dogtag CA backend URL |
 | `REKOR_URL` | *(unset)* | Rekor transparency log URL (enables `/rekor/api/v1/` proxy) |
 | `BACKEND_PORT` | `3000` | Fastify backend listen port |
+| `CA_TLS_REJECT_UNAUTHORIZED` | `false` | Set `true` for production (validates CA's TLS cert) |
+| `CA_BUNDLE` | *(optional)* | Path to CA chain PEM for verifying Dogtag's TLS cert |
+| `CLIENT_CA_CERT` | *(optional)* | Client CA cert for nginx mTLS verification |
 | `LDAP_URL` | *(unset = Dogtag-only auth)* | LDAP server URL for fallback auth |
 | `LDAP_BASE_DN` | `o=pki-tomcat-CA` | LDAP base DN |
 | `LDAP_BIND_DN` | *(optional)* | DN for LDAP search bind |
@@ -260,10 +263,17 @@ See [SECURITY.md](SECURITY.md) for the full security audit results.
 Key security features:
 - Per-user authentication relay (no standing credentials in container)
 - Dual auth: password + client certificate (mTLS)
-- In-memory session store with automatic expiry sweep
-- Rate limiting (5 attempts per IP per 15 minutes)
+- In-memory session store with 30-minute TTL and automatic expiry sweep
+- Periodic role re-validation (every 5 minutes via Dogtag session check)
+- Login rate limiting (5 attempts per IP per 15 minutes)
+- API write rate limiting (30 requests per minute per session)
+- Structured audit logging for all auth events (JSON to stdout)
 - CSRF protection via SameSite=Strict cookies
 - Server-side RBAC enforcement on all `/ca/rest/` routes
+- Configurable TLS validation on backend-to-CA connections (`CA_TLS_REJECT_UNAUTHORIZED`, `CA_BUNDLE`)
+- Optional client CA verification at nginx layer (`CLIENT_CA_CERT`)
+- XFF spoofing protection (nginx overwrites, Fastify trusts only 127.0.0.1)
+- Clear-Site-Data header on logout
 - Security headers (CSP, HSTS, X-Frame-Options, etc.)
 - Error message sanitization (no stack traces, 200-char cap)
 - Non-root container runtime (UID 1001)

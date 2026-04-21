@@ -20,12 +20,13 @@ import {
 } from "./dogtagAuth.js";
 import { caProxyHandler } from "./caProxy.js";
 import { createLdapBackend } from "./ldapBackend.js";
+import { auditLog } from "./auditLog.js";
 import type { AuthBackend } from "./authMiddleware.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const SESSION_COOKIE = "webui_session";
-const SESSION_MAX_AGE_SEC = 2 * 60 * 60;
+const SESSION_MAX_AGE_SEC = 30 * 60;
 const REKOR_URL = process.env.REKOR_URL || "";
 const BACKEND_PORT = parseInt(process.env.BACKEND_PORT || "3000", 10);
 
@@ -51,6 +52,7 @@ export async function buildApp() {
     logger: {
       level: process.env.LOG_LEVEL || "info",
     },
+    trustProxy: "127.0.0.1",
   });
 
   await app.register(cookie);
@@ -58,9 +60,7 @@ export async function buildApp() {
   const ldapBackend = buildAuthBackend();
   const useLdapFallback = !!ldapBackend;
 
-  function getClientIp(request: { ip: string; headers: Record<string, unknown> }): string {
-    const xff = request.headers["x-forwarded-for"];
-    if (typeof xff === "string") return xff.split(",")[0].trim();
+  function getClientIp(request: { ip: string }): string {
     return request.ip;
   }
 
@@ -112,10 +112,10 @@ export async function buildApp() {
         fullName = dogtagResult.account.FullName || username;
         email = dogtagResult.account.Email || "";
       } else if (useLdapFallback && ldapBackend) {
-        // Fall back to LDAP-only validation (Dogtag may not support basic auth)
         const ldapUser = await ldapBackend.validate(username, password);
         if (!ldapUser) {
           recordAttempt(clientIp, false);
+          auditLog("login_failure", username, clientIp, { method: "password", backend: "ldap" });
           return reply.status(401).send({ error: "Invalid username or password" });
         }
         roles = ldapUser.roles;
@@ -123,6 +123,7 @@ export async function buildApp() {
         email = ldapUser.email;
       } else {
         recordAttempt(clientIp, false);
+        auditLog("login_failure", username, clientIp, { method: "password" });
         return reply.status(401).send({ error: "Invalid username or password" });
       }
 
@@ -139,6 +140,7 @@ export async function buildApp() {
       );
 
       setCookie(reply, SESSION_COOKIE, session.id, SESSION_MAX_AGE_SEC);
+      auditLog("login_success", username, clientIp, { method: "password", roles: mappedRoles });
 
       return reply.send({
         username,
@@ -164,6 +166,7 @@ export async function buildApp() {
 
     const dogtagResult = await loginToDogtagWithCert(decodedPem);
     if (!dogtagResult) {
+      auditLog("cert_login_failure", "unknown", request.ip);
       return reply.status(401).send({ error: "Certificate authentication failed" });
     }
 
@@ -182,6 +185,7 @@ export async function buildApp() {
     );
 
     setCookie(reply, SESSION_COOKIE, session.id, SESSION_MAX_AGE_SEC);
+    auditLog("cert_login_success", session.username, request.ip, { method: "certificate", roles: session.roles });
 
     return reply.send({
       username: session.username,
@@ -239,13 +243,17 @@ export async function buildApp() {
     const sessionId = request.cookies?.[SESSION_COOKIE];
     if (sessionId) {
       const session = getSession(sessionId);
-      if (session?.dogtagCookies) {
-        await logoutFromDogtag(session.dogtagCookies);
+      if (session) {
+        auditLog("logout", session.username, request.ip);
+        if (session.dogtagCookies) {
+          await logoutFromDogtag(session.dogtagCookies);
+        }
       }
       deleteSession(sessionId);
     }
 
     setCookie(reply, SESSION_COOKIE, "", 0);
+    reply.header("Clear-Site-Data", '"cache", "cookies", "storage"');
     return reply.send({ ok: true });
   });
 

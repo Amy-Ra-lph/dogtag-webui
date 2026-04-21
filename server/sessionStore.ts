@@ -11,9 +11,10 @@ export interface DogtagSession {
   clientCertPem: string | null;
   createdAt: number;
   expiresAt: number;
+  lastRoleCheck: number;
 }
 
-const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 30 * 60 * 1000;
 const MAX_SESSIONS = 10_000;
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -50,6 +51,7 @@ export function createSession(
     clientCertPem,
     createdAt: now,
     expiresAt: now + SESSION_TTL_MS,
+    lastRoleCheck: now,
   };
 
   sessions.set(id, session);
@@ -77,6 +79,17 @@ export function updateDogtagCookies(
   const session = sessions.get(id);
   if (session) {
     session.dogtagCookies = cookies;
+  }
+}
+
+export function updateSessionRoles(
+  id: string,
+  roles: string[],
+): void {
+  const session = sessions.get(id);
+  if (session) {
+    session.roles = roles;
+    session.lastRoleCheck = Date.now();
   }
 }
 

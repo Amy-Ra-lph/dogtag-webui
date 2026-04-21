@@ -344,6 +344,7 @@ export function authPlugin(backend?: AuthBackend) {
             "Set-Cookie",
             `${SESSION_COOKIE}=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0`,
           );
+          res.setHeader("Clear-Site-Data", '"cache", "cookies", "storage"');
           res.statusCode = 200;
           res.end(JSON.stringify({ ok: true }));
           return;

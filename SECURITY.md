@@ -9,63 +9,9 @@ The WebUI runs an **unprivileged backend** (Fastify) behind nginx. No agent or a
 - **Password flow:** Backend authenticates to Dogtag via Basic auth, stores the resulting JSESSIONID per user
 - **Certificate flow:** nginx handles mTLS (`ssl_verify_client optional_no_ca`), passes the client cert PEM to the backend via `X-SSL-Client-Cert` header, backend uses it to establish a Dogtag session
 
-All Dogtag sessions are stored in server memory with automatic expiry (2 hours). No credentials are written to disk.
+All Dogtag sessions are stored in server memory with automatic expiry (30 minutes) and periodic role re-validation (every 5 minutes). No credentials are written to disk.
 
 ## Open Findings
-
-### #1 — TLS Validation Disabled on CA Backend Connection (HIGH)
-
-**Issue:** The CA proxy (`caProxy.ts`) and auth helpers (`dogtagAuth.ts`) set `rejectUnauthorized: false` on HTTPS connections to Dogtag. This allows MITM on the backend-to-CA path.
-
-**Risk:** An attacker on the internal network could intercept/modify requests between the WebUI backend and Dogtag CA.
-
-**Mitigation:** This is expected for PoC deployments where the CA uses a self-signed certificate. For production, set `rejectUnauthorized: true` and provide the CA chain via the `NODE_EXTRA_CA_CERTS` environment variable or a `CA_BUNDLE` path.
-
-### #2 — Rate Limit Bypass via X-Forwarded-For Spoofing (HIGH)
-
-**Issue:** Rate limiting uses the `X-Forwarded-For` header to identify client IPs. If a request bypasses nginx, the header can be spoofed to evade rate limits.
-
-**Risk:** Brute-force password attacks could bypass the 5-attempt limit.
-
-**Recommendation:** Configure nginx to strip/overwrite `X-Forwarded-For` with `proxy_set_header X-Forwarded-For $remote_addr`. The Fastify backend should only trust XFF from known proxy IPs.
-
-### #3 — Cached Roles Not Re-Validated (HIGH)
-
-**Issue:** User roles are cached in the session for 2 hours. If an admin revokes a user's roles in LDAP/Dogtag, the cached session continues to grant access until expiry.
-
-**Risk:** Delayed revocation of access for up to 2 hours.
-
-**Recommendation:** Reduce session TTL to 30 minutes for PKI systems. Periodically re-validate roles by calling Dogtag's `/ca/rest/account/login` and comparing returned roles.
-
-### #4 — No Audit Logging for Auth Events (MEDIUM)
-
-**Issue:** Failed login attempts are rate-limited but not logged to a persistent audit log. Successful logins are also not logged.
-
-**Risk:** No audit trail for security investigations or compliance.
-
-**Recommendation:** Log all auth events (success/failure) with timestamp, username, IP, and auth method to a structured log file.
-
-### #5 — No Rate Limiting on API Endpoints (MEDIUM)
-
-**Issue:** Only the login endpoint is rate-limited. Certificate revocation, approval, and enrollment endpoints have no rate limiting.
-
-**Risk:** An authenticated attacker could mass-revoke certificates or spam enrollment requests.
-
-**Recommendation:** Add per-session, per-endpoint rate limiting for write operations.
-
-### #6 — No CA Verification at nginx Layer (MEDIUM)
-
-**Issue:** nginx uses `ssl_verify_client optional_no_ca`, accepting any client certificate without CA verification. Certificate validation happens at Dogtag, not nginx.
-
-**Risk:** Malformed or self-signed client certs are forwarded to the backend. Dogtag rejects them, but the backend processes the request up to that point.
-
-**Recommendation:** For production, use `ssl_verify_client optional` with `ssl_client_certificate` pointing to the trusted CA chain. This validates certs at the nginx layer before they reach the backend.
-
-### #7 — Missing Clear-Site-Data Header on Logout (MEDIUM)
-
-**Issue:** Logout clears the session cookie but does not send the `Clear-Site-Data` header. Browser cache or service workers may retain stale data.
-
-**Recommendation:** Add `Clear-Site-Data: "cache", "cookies", "storage"` header on the logout response.
 
 ### #19 — unsafe-inline in CSP for Styles (LOW — ACCEPTED RISK)
 
@@ -90,12 +36,19 @@ All Dogtag sessions are stored in server memory with automatic expiry (2 hours).
 | 9 | HIGH | No Secure cookie flag | Conditional Secure flag behind HTTPS |
 | 10 | HIGH | Dev server on 0.0.0.0 | .env.example defaults to localhost |
 | 11 | HIGH | Single admin cert for all users | **Replaced with per-user auth backend** — Fastify relays each user's own credentials to Dogtag. No agent/admin cert in container. |
+| 25 | HIGH | TLS validation disabled on CA connection | Configurable via `CA_TLS_REJECT_UNAUTHORIZED=true` + `CA_BUNDLE` or `NODE_EXTRA_CA_CERTS` |
+| 26 | HIGH | XFF spoofing bypasses rate limiter | nginx overwrites XFF with `$remote_addr`; Fastify `trustProxy: "127.0.0.1"` |
+| 27 | HIGH | Cached roles not re-validated | Session TTL reduced to 30 min; roles re-validated via Dogtag every 5 min in proxy handler |
+| 28 | MEDIUM | No audit logging for auth events | Structured JSON audit log to stdout for all auth events |
+| 29 | MEDIUM | No rate limiting on API endpoints | Per-session rate limit (30 writes/min) on all `/ca/rest/` write operations |
+| 30 | MEDIUM | No CA verification at nginx layer | `CLIENT_CA_CERT` env var switches to `ssl_verify_client optional` with `ssl_client_certificate` |
+| 31 | MEDIUM | Missing Clear-Site-Data on logout | `Clear-Site-Data: "cache", "cookies", "storage"` header added to logout response |
 | 12 | MEDIUM | No CSRF protection | SameSite=Strict cookies + Origin validation |
 | 13 | MEDIUM | Temp file race condition | Ansible `tempfile` module |
 | 14 | MEDIUM | No rate limiting on login | 5 attempts per IP per 15-minute window |
 | 15 | MEDIUM | Login page leaks usernames | Gated behind `import.meta.env.DEV` |
 | 16 | MEDIUM | Client-side RBAC only | Server-side route RBAC middleware |
-| 17 | MEDIUM | 8-hour session, no idle timeout | Reduced to 2 hours |
+| 17 | MEDIUM | 8-hour session, no idle timeout | Reduced to 30 minutes with 5-minute role re-validation |
 | 18 | MEDIUM | Unencrypted LDAP | Ansible defaults to LDAPS (port 636) |
 | 20 | LOW | No HSTS header | Added `Strict-Transport-Security` |
 | 21 | LOW | Error messages leak internals | Filter stack traces, cap at 200 chars |
