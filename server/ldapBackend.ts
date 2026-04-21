@@ -1,6 +1,6 @@
 import { Client } from "ldapts";
 import fs from "node:fs";
-import type { TlsOptions } from "node:tls";
+import type { ConnectionOptions } from "node:tls";
 import type { AuthBackend } from "./authMiddleware";
 
 export interface LdapConfig {
@@ -26,8 +26,8 @@ const DOGTAG_GROUP_ROLE_MAP: Record<string, string> = {
   "Enterprise TPS Administrators": "administrator",
 };
 
-function buildTlsOptions(config: LdapConfig): TlsOptions {
-  const opts: TlsOptions = {
+function buildConnectionOptions(config: LdapConfig): ConnectionOptions {
+  const opts: ConnectionOptions = {
     rejectUnauthorized: config.tlsRejectUnauthorized ?? true,
   };
   if (config.tlsCaCertPath) {
@@ -40,7 +40,7 @@ export function createLdapBackend(config: LdapConfig): AuthBackend {
   const userSearchBase = config.userSearchBase ?? `ou=people,${config.baseDn}`;
   const groupSearchBase =
     config.groupSearchBase ?? `ou=groups,${config.baseDn}`;
-  const tlsOptions = buildTlsOptions(config);
+  const tlsOptions = buildConnectionOptions(config);
 
   async function findUserAndRoles(
     username: string,

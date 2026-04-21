@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { loadEnv } from "vite";
+import { loadEnv, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import fs from "fs";
 import path from "path";
@@ -64,6 +64,37 @@ export default defineConfig(({ mode }) => {
       })
     : undefined;
 
+  const proxyConfig: Record<string, ProxyOptions> = env.VITE_BACKEND_URL
+    ? {
+        "/ca/rest": {
+          target: env.VITE_BACKEND_URL,
+          changeOrigin: true,
+        },
+        "/webui/api": {
+          target: env.VITE_BACKEND_URL,
+          changeOrigin: true,
+        },
+        "/rekor/api": {
+          target: env.VITE_BACKEND_URL,
+          changeOrigin: true,
+        },
+      }
+    : {
+        "/ca/rest": {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: isProd,
+          agent,
+          cookieDomainRewrite: "",
+          cookiePathRewrite: "/",
+          configure: (proxy) => {
+            if (!isProd) {
+              proxy.on("proxyRes", stripSecureFromCookies);
+            }
+          },
+        },
+      };
+
   return {
     base: "/",
     build: {
@@ -78,36 +109,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: env.VITE_DEV_HOST || "localhost",
       port: 5173,
-      proxy: env.VITE_BACKEND_URL
-        ? {
-            "/ca/rest": {
-              target: env.VITE_BACKEND_URL,
-              changeOrigin: true,
-            },
-            "/webui/api": {
-              target: env.VITE_BACKEND_URL,
-              changeOrigin: true,
-            },
-            "/rekor/api": {
-              target: env.VITE_BACKEND_URL,
-              changeOrigin: true,
-            },
-          }
-        : {
-            "/ca/rest": {
-              target: proxyTarget,
-              changeOrigin: true,
-              secure: isProd,
-              agent,
-              cookieDomainRewrite: "",
-              cookiePathRewrite: "/",
-              configure: (proxy) => {
-                if (!isProd) {
-                  proxy.on("proxyRes", stripSecureFromCookies);
-                }
-              },
-            },
-          },
+      proxy: proxyConfig,
     },
     test: {
       projects: [
