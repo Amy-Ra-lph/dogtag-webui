@@ -1,0 +1,223 @@
+title: "Dogtag PKI WebUI: Certificate Lifecycle & SPIRE/Sigstore Integration"
+subtitle: "Modern React UI for Enterprise PKI — Certificate Authority Operations via REST API"
+logo: ~/.claude/skills/powerpoint/redhat-logo-white.svg
+theme: rh-dark
+tagline: "Browse, inspect, and manage certificates — SVID workloads and code-signing in one pane."
+
+acts:
+  - title: "Certificate Inventory Overview"
+    desc: "The Certificates page shows all CA-issued certs with status, subject, and serial"
+    icon: list
+    color: "#3e8635"
+    points:
+      - "Real-time certificate listing from Dogtag CA REST API"
+      - "Status badges: VALID (green), REVOKED (red), EXPIRED (yellow)"
+      - "Click any row to inspect full certificate details"
+    commands:
+      - prompt: "$ pki -U https://localhost:8443 --ignore-cert-status UNKNOWN_ISSUER,BAD_CERT_DOMAIN ca-cert-find --size 25"
+        output: |
+          ---------------
+          22 entries matched
+          ---------------
+            Serial Number: 0x758f86e4084839878b01b84da84adab5
+            Subject DN: CN=web-server.test.example.com
+            Status: VALID
+            Type: X.509
+            Not Valid Before: Mon Apr 21 13:33:11 UTC 2026
+            Not Valid After:  Tue Apr 21 13:33:11 UTC 2027
+
+            Serial Number: 0x3016b6b4478f06ff60f2899d3d9e9102
+            Subject DN: CN=api-gateway.test.example.com
+            Status: VALID
+            Type: X.509
+
+            Serial Number: 0x2ded7fce0103f0c9040791a56788c8f9
+            Subject DN: O=Test Example,CN=alice@test.example.com
+            Status: VALID
+            Type: X.509
+          ----------------------------
+          Number of entries returned 22
+
+  - title: "SVID Certificate Details"
+    desc: "Inspect an SVID certificate — SPIFFE URI SAN proves workload identity"
+    icon: key
+    color: "#0066cc"
+    points:
+      - "SPIFFE URI in Subject Alternative Name: spiffe://test.example.com/workload/web-server"
+      - "DNS SAN for mTLS: web-server.test.example.com"
+      - "Issued by the svidCert profile with SAN passthrough"
+    commands:
+      - prompt: "$ pki -U https://localhost:8443 --ignore-cert-status UNKNOWN_ISSUER,BAD_CERT_DOMAIN ca-cert-show 0x758f86e4084839878b01b84da84adab5 --pretty"
+        output: |
+          Certificate:
+            Subject DN: CN=web-server.test.example.com
+            Issuer DN: CN=CA Signing Certificate,O=Test Example
+            Status: VALID
+
+          Extensions:
+            Identifier: Subject Alternative Name - 2.5.29.17
+              Critical: no
+              Value:
+                URIName: spiffe://test.example.com/workload/web-server
+                DNSName: web-server.test.example.com
+
+            Identifier: Key Usage: - 2.5.29.15
+              Critical: yes
+              Key Usage:
+                Digital Signature
+                Key Encipherment
+
+  - title: "Code-Signing Certificate Details"
+    desc: "Inspect a code-signing cert — EKU proves signing authority"
+    icon: shield
+    color: "#8f4700"
+    points:
+      - "Extended Key Usage: codeSigning (1.3.6.1.5.5.7.3.3)"
+      - "Key Usage: Digital Signature + Non-Repudiation"
+      - "Email SAN for identity binding"
+    commands:
+      - prompt: "$ pki -U https://localhost:8443 --ignore-cert-status UNKNOWN_ISSUER,BAD_CERT_DOMAIN ca-cert-show 0x2ded7fce0103f0c9040791a56788c8f9 --pretty"
+        output: |
+          Certificate:
+            Subject DN: O=Test Example,CN=alice@test.example.com
+            Issuer DN: CN=CA Signing Certificate,O=Test Example
+            Status: VALID
+
+          Extensions:
+            Identifier: Extended Key Usage: - 2.5.29.37
+              Critical: no
+              Extended Key Usage:
+                codeSigning - 1.3.6.1.5.5.7.3.3
+
+            Identifier: Key Usage: - 2.5.29.15
+              Critical: yes
+              Key Usage:
+                Digital Signature
+                Non Repudiation
+
+            Identifier: Subject Alternative Name - 2.5.29.17
+              Critical: no
+              Value:
+                RFC822Name: alice@test.example.com
+
+  - title: "SPIRE SVID Dashboard"
+    desc: "The SPIRE SVIDs page groups certificates by trust domain and workload type"
+    icon: workload
+    color: "#3e8635"
+    points:
+      - "Filters certs by SPIFFE URI SAN (spiffe:// prefix)"
+      - "Shows trust domain, workload path, and DNS SANs"
+      - "SPIRE entries cross-referenced when SPIRE Server API is available"
+
+  - title: "Code-Signing Dashboard"
+    desc: "The Code Signing page shows signing certs with Rekor cross-reference"
+    icon: lock
+    color: "#c9190b"
+    points:
+      - "Filters certs by codeSigning EKU (1.3.6.1.5.5.7.3.3)"
+      - "Rekor verification badge when cert hash found in transparency log"
+      - "SHA-256 fingerprint used for Rekor index lookup"
+
+  - title: "Trust Chain Visualization"
+    desc: "The Trust Chain page maps the full PKI hierarchy"
+    icon: check
+    color: "#0066cc"
+    points:
+      - "Root CA at top, intermediate CAs (Fulcio, OCSP) branching below"
+      - "Each node shows issuer, subject, and validity"
+      - "Visual distinction between CA certs, server certs, and signing certs"
+
+  - title: "Certificate Profiles"
+    desc: "Custom profiles define what the CA will issue"
+    icon: scope
+    color: "#8f4700"
+    points:
+      - "svidCert: SVID profile with SAN passthrough for SPIFFE URI SANs"
+      - "codeSigningCert: code-signing EKU, nonRepudiation, 20-min validity"
+      - "Profiles enforce policy — constraints validated before issuance"
+    commands:
+      - prompt: "$ pki -U https://localhost:8443 --ignore-cert-status UNKNOWN_ISSUER,BAD_CERT_DOMAIN ca-profile-find"
+        output: |
+          ----------------
+          Profile ID: svidCert
+          Name: SVID Certificate Enrollment
+          Description: Issues SVID certificates with SAN passthrough for SPIFFE URI SANs.
+          Enabled: true
+          Visible: true
+
+          Profile ID: codeSigningCert
+          Name: Code Signing Certificate Enrollment
+          Description: Issues code-signing certificates with code signing EKU.
+          Enabled: true
+          Visible: true
+          ----------------
+
+  - title: "SPIRE Integration"
+    desc: "SPIRE Server running on the PoC with registered workload entries"
+    icon: workload
+    color: "#3e8635"
+    points:
+      - "SPIRE entries map workload selectors to SPIFFE IDs"
+      - "Dogtag-issued SVIDs provide the X.509 identity for each workload"
+      - "Trust domain: test.example.com"
+    commands:
+      - prompt: "$ sudo podman exec spire-server /opt/spire/bin/spire-server entry show"
+        output: |
+          Found 5 entries
+          Entry ID         : abc123
+          SPIFFE ID        : spiffe://test.example.com/workload/web-server
+          Parent ID        : spiffe://test.example.com/spire/agent/...
+          Revision         : 0
+
+          Entry ID         : def456
+          SPIFFE ID        : spiffe://test.example.com/workload/mcp-postgres
+          Parent ID        : spiffe://test.example.com/spire/agent/...
+          Revision         : 0
+
+  - title: "Rekor Transparency Log"
+    desc: "Signing events recorded in the immutable transparency log"
+    icon: list
+    color: "#c9190b"
+    points:
+      - "Rekor running at http://localhost:3000 with 17+ log entries"
+      - "WebUI cross-references cert fingerprint against Rekor index"
+      - "Each entry contains the signing certificate and artifact hash"
+    commands:
+      - prompt: "$ rekor-cli loginfo --rekor_server http://localhost:3000"
+        output: |
+          Verification Successful!
+          Tree Size: 17
+          Root Hash: 8a4f3c...
+          Timestamp: 2026-04-21T13:00:00Z
+
+  - title: "The Architecture"
+    desc: "Dogtag CA + SPIRE + Rekor — enterprise PKI meets cloud-native identity"
+    icon: check
+    color: "#a30000"
+    points:
+      - "Dogtag issues X.509 certs: SVIDs (SPIFFE URI SANs) and code-signing (EKU)"
+      - "SPIRE consumes SVIDs for workload identity attestation"
+      - "Rekor provides transparency for code-signing events"
+      - "WebUI provides a single pane of glass across all three systems"
+    html: |
+      <h2>Dogtag WebUI Architecture</h2>
+      <div class="flow-diagram">
+        <div class="flow-step"><strong>Dogtag CA</strong><br>
+          <span style="color:var(--text-secondary)">Issues SVIDs + code-signing certs via REST API</span>
+        </div>
+        <div class="flow-arrow">certificates</div>
+        <div class="flow-step" style="display:flex;gap:3rem;justify-content:center">
+          <div>
+            <strong style="color:#3e8635">SPIRE Server</strong><br>
+            <span style="color:var(--text-secondary)">Workload identity attestation</span>
+          </div>
+          <div>
+            <strong style="color:#c9190b">Rekor Log</strong><br>
+            <span style="color:var(--text-secondary)">Signing transparency</span>
+          </div>
+        </div>
+        <div class="flow-arrow">REST APIs</div>
+        <div class="flow-step"><strong>Dogtag WebUI</strong><br>
+          <span style="color:var(--text-secondary)">React + PatternFly — single pane for all PKI operations</span>
+        </div>
+      </div>
