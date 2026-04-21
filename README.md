@@ -91,7 +91,7 @@ podman run -d -p 8080:8080 \
   dogtag-webui
 ```
 
-The container uses a multi-stage build: UBI 9 nodejs-18-minimal for the build stage, UBI 9 nginx-122 for runtime. It runs as non-root (UID 1001). The nginx proxy authenticates to the CA using a mounted agent certificate (not the admin cert) for least-privilege access.
+The container uses a multi-stage build: UBI 10 with Node.js 24 for the build stage, UBI 10 with nginx 1.26 for runtime. It runs as non-root (UID 1001). The nginx proxy authenticates to the CA using a mounted agent certificate (not the admin cert) for least-privilege access.
 
 ### Ansible
 

@@ -4,7 +4,7 @@ stages:
   - build
 
 default:
-  image: node:18-alpine
+  image: node:22-alpine
 
 cache:
   key: ${CI_COMMIT_REF_SLUG}
