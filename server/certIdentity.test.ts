@@ -2,7 +2,8 @@
 import { describe, it, expect } from "vitest";
 import { parseCertIdentity } from "./certIdentity";
 
-// Test fixture: Dogtag admin cert (CN=PKI Administrator, valid 2026-2028)
+// Test fixture: public certificate only (no private key) — safe to commit.
+// Dogtag admin cert (CN=PKI Administrator, valid 2026-2028)
 const ADMIN_CERT_PEM = `-----BEGIN CERTIFICATE-----
 MIID3zCCAsegAwIBAgIQMBcQz9fyMBoBcVjIy2IHmzANBgkqhkiG9w0BAQsFADA4
 MRUwEwYDVQQKDAxUZXN0IEV4YW1wbGUxHzAdBgNVBAMMFkNBIFNpZ25pbmcgQ2Vy
