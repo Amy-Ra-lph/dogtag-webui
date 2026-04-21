@@ -2,7 +2,12 @@ import https from "node:https";
 import http from "node:http";
 import { URL } from "node:url";
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { getSession, deleteSession, updateDogtagCookies, updateSessionRoles } from "./sessionStore.js";
+import {
+  getSession,
+  deleteSession,
+  updateDogtagCookies,
+  updateSessionRoles,
+} from "./sessionStore.js";
 import { checkRouteAccess } from "./authMiddleware.js";
 import { checkDogtagSession } from "./dogtagAuth.js";
 import { caTlsOptions } from "./caTlsConfig.js";
@@ -27,7 +32,10 @@ function recordApiWrite(sessionId: string): void {
   const now = Date.now();
   const entry = apiRateCounters.get(sessionId);
   if (!entry || entry.resetAt < now) {
-    apiRateCounters.set(sessionId, { count: 1, resetAt: now + API_RATE_WINDOW_MS });
+    apiRateCounters.set(sessionId, {
+      count: 1,
+      resetAt: now + API_RATE_WINDOW_MS,
+    });
   } else {
     entry.count++;
   }
@@ -55,14 +63,10 @@ const DOGTAG_ROLE_MAP: Record<string, string> = {
   auditor: "auditor",
 };
 
-function extractSetCookies(
-  headers: http.IncomingHttpHeaders,
-): string | null {
+function extractSetCookies(headers: http.IncomingHttpHeaders): string | null {
   const sc = headers["set-cookie"];
   if (!sc) return null;
-  return sc
-    .map((c) => c.split(";")[0])
-    .join("; ");
+  return sc.map((c) => c.split(";")[0]).join("; ");
 }
 
 export async function caProxyHandler(
@@ -90,10 +94,13 @@ export async function caProxyHandler(
       deleteSession(sessionId);
       return reply.status(401).send({ error: "Session expired" });
     }
-    const newRoles = (refreshed.account.Roles || []).map(
-      (r: string) => DOGTAG_ROLE_MAP[r] || r,
-    ).filter(Boolean);
-    updateSessionRoles(sessionId, newRoles.length > 0 ? newRoles : session.roles);
+    const newRoles = (refreshed.account.Roles || [])
+      .map((r: string) => DOGTAG_ROLE_MAP[r] || r)
+      .filter(Boolean);
+    updateSessionRoles(
+      sessionId,
+      newRoles.length > 0 ? newRoles : session.roles,
+    );
     if (refreshed.cookies !== session.dogtagCookies) {
       updateDogtagCookies(sessionId, refreshed.cookies);
     }
@@ -112,7 +119,9 @@ export async function caProxyHandler(
         method: request.method,
         path: urlPath,
       });
-      return reply.status(429).send({ error: "Too many write requests. Try again later." });
+      return reply
+        .status(429)
+        .send({ error: "Too many write requests. Try again later." });
     }
     recordApiWrite(sessionId);
   }
@@ -175,8 +184,7 @@ export async function caProxyHandler(
 
     const body = (request as unknown as { body: unknown }).body;
     if (body && request.method !== "GET" && request.method !== "HEAD") {
-      const bodyStr =
-        typeof body === "string" ? body : JSON.stringify(body);
+      const bodyStr = typeof body === "string" ? body : JSON.stringify(body);
       proxyReq.write(bodyStr);
     }
 

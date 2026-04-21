@@ -291,9 +291,7 @@ describe("checkRouteAccess", () => {
 
   describe("route matching edge cases", () => {
     it("matches /ca/rest/certs with subpaths", () => {
-      expect(
-        checkRouteAccess("/ca/rest/certs/12345", ["auditor"]),
-      ).toBe(true);
+      expect(checkRouteAccess("/ca/rest/certs/12345", ["auditor"])).toBe(true);
     });
 
     it("matches /ca/rest/profiles exactly (no trailing slash)", () => {
@@ -301,9 +299,9 @@ describe("checkRouteAccess", () => {
     });
 
     it("matches /ca/rest/profiles/ with subpath", () => {
-      expect(
-        checkRouteAccess("/ca/rest/profiles/caUserCert", ["agent"]),
-      ).toBe(true);
+      expect(checkRouteAccess("/ca/rest/profiles/caUserCert", ["agent"])).toBe(
+        true,
+      );
     });
   });
 });

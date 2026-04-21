@@ -9,7 +9,9 @@ import { authPlugin } from "./server/authMiddleware";
 import type { AuthBackend } from "./server/authMiddleware";
 import { createLdapBackend } from "./server/ldapBackend";
 
-function buildAuthBackend(env: Record<string, string>): AuthBackend | undefined {
+function buildAuthBackend(
+  env: Record<string, string>,
+): AuthBackend | undefined {
   const ldapUrl = env.VITE_LDAP_URL;
   if (!ldapUrl) return undefined;
 

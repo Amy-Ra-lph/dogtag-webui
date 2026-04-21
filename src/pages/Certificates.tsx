@@ -18,11 +18,7 @@ import {
 import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 import { useNavigate } from "react-router";
 import BreadcrumbLayout from "src/components/BreadcrumbLayout";
-import {
-  useGetCertificatesQuery,
-  dogtagApi,
-  type CertInfo,
-} from "src/services/dogtagApi";
+import { useGetCertificatesQuery, dogtagApi } from "src/services/dogtagApi";
 import { useAppDispatch } from "src/store/store";
 import StatusLabel from "src/components/StatusLabel";
 import ErrorBanner from "src/components/ErrorBanner";

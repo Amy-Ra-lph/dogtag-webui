@@ -11,9 +11,6 @@ vi.mock("ldapts", () => {
 });
 
 import { Client } from "ldapts";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockClient = (Client as any)().__proto__;
-
 import { createLdapBackend } from "./ldapBackend";
 
 describe("createLdapBackend", () => {
@@ -89,7 +86,7 @@ describe("createLdapBackend", () => {
       const instance = {
         bind: vi.fn().mockResolvedValue(undefined),
         unbind: vi.fn().mockResolvedValue(undefined),
-        search: vi.fn().mockImplementation((_base: string, opts: { filter?: string }) => {
+        search: vi.fn().mockImplementation(() => {
           callCount++;
           if (callCount === 1) {
             return {
@@ -222,7 +219,9 @@ describe("createLdapBackend", () => {
 
     const result = await backend.validate("superadmin", "pass");
     expect(result).not.toBeNull();
-    const adminCount = result!.roles.filter((r) => r === "administrator").length;
+    const adminCount = result!.roles.filter(
+      (r) => r === "administrator",
+    ).length;
     expect(adminCount).toBe(1);
   });
 
@@ -234,7 +233,7 @@ describe("createLdapBackend", () => {
     };
     const backend = createLdapBackend(customConfig);
 
-    let searchBases: string[] = [];
+    const searchBases: string[] = [];
     let callCount = 0;
     (Client as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {
       const instance = {
@@ -246,7 +245,11 @@ describe("createLdapBackend", () => {
           if (callCount === 1) {
             return {
               searchEntries: [
-                { dn: "uid=user,ou=users,dc=example,dc=com", cn: "User", mail: "" },
+                {
+                  dn: "uid=user,ou=users,dc=example,dc=com",
+                  cn: "User",
+                  mail: "",
+                },
               ],
             };
           }

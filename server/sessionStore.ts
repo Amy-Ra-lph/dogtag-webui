@@ -72,20 +72,14 @@ export function deleteSession(id: string): void {
   sessions.delete(id);
 }
 
-export function updateDogtagCookies(
-  id: string,
-  cookies: string,
-): void {
+export function updateDogtagCookies(id: string, cookies: string): void {
   const session = sessions.get(id);
   if (session) {
     session.dogtagCookies = cookies;
   }
 }
 
-export function updateSessionRoles(
-  id: string,
-  roles: string[],
-): void {
+export function updateSessionRoles(id: string, roles: string[]): void {
   const session = sessions.get(id);
   if (session) {
     session.roles = roles;

@@ -101,7 +101,9 @@ export function verify(token: string): SessionPayload | null {
   }
 }
 
-export function parseCookies(header: string | undefined): Record<string, string> {
+export function parseCookies(
+  header: string | undefined,
+): Record<string, string> {
   const cookies: Record<string, string> = {};
   if (!header) return cookies;
   for (const pair of header.split(";")) {
@@ -115,7 +117,10 @@ export function parseCookies(header: string | undefined): Record<string, string>
 // Rate limiting
 // ---------------------------------------------------------------------------
 
-export const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+export const loginAttempts = new Map<
+  string,
+  { count: number; resetAt: number }
+>();
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 

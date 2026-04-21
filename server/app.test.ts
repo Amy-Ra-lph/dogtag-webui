@@ -1,5 +1,13 @@
 // @vitest-environment node
-import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "vitest";
 
 // Mock dogtagAuth before importing app
 vi.mock("./dogtagAuth.js", () => ({
@@ -198,7 +206,9 @@ describe("POST /webui/api/auth/logout", () => {
     });
 
     expect(logoutRes.statusCode).toBe(200);
-    expect(logoutRes.headers["clear-site-data"]).toBe('"cache", "cookies", "storage"');
+    expect(logoutRes.headers["clear-site-data"]).toBe(
+      '"cache", "cookies", "storage"',
+    );
 
     // Verify Dogtag logout was called
     expect(mockLogoutFromDogtag).toHaveBeenCalledWith("JSESSIONID=logout1");

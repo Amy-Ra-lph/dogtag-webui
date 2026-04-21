@@ -20,6 +20,7 @@ export default defineConfig([
   globalIgnores([
     "node_modules/**",
     "dist/**",
+    "server/dist/**",
     "coverage/**",
     "eslint.config.mjs",
   ]),
@@ -52,7 +53,7 @@ export default defineConfig([
         jsx: true,
         js: true,
         useJSXTextNode: true,
-        project: ["./tsconfig.json"],
+        project: ["./tsconfig.json", "./server/tsconfig.json"],
       },
     },
 

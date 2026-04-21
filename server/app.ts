@@ -4,15 +4,8 @@ import fastifyStatic from "@fastify/static";
 import httpProxy from "@fastify/http-proxy";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  isRateLimited,
-  recordAttempt,
-} from "./authMiddleware.js";
-import {
-  createSession,
-  getSession,
-  deleteSession,
-} from "./sessionStore.js";
+import { isRateLimited, recordAttempt } from "./authMiddleware.js";
+import { createSession, getSession, deleteSession } from "./sessionStore.js";
 import {
   loginToDogtag,
   loginToDogtagWithCert,
@@ -97,7 +90,9 @@ export async function buildApp() {
 
       const { username, password } = request.body || {};
       if (!username || !password) {
-        return reply.status(400).send({ error: "Username and password required" });
+        return reply
+          .status(400)
+          .send({ error: "Username and password required" });
       }
 
       // Try Dogtag basic auth first
@@ -115,8 +110,13 @@ export async function buildApp() {
         const ldapUser = await ldapBackend.validate(username, password);
         if (!ldapUser) {
           recordAttempt(clientIp, false);
-          auditLog("login_failure", username, clientIp, { method: "password", backend: "ldap" });
-          return reply.status(401).send({ error: "Invalid username or password" });
+          auditLog("login_failure", username, clientIp, {
+            method: "password",
+            backend: "ldap",
+          });
+          return reply
+            .status(401)
+            .send({ error: "Invalid username or password" });
         }
         roles = ldapUser.roles;
         fullName = ldapUser.fullName;
@@ -124,7 +124,9 @@ export async function buildApp() {
       } else {
         recordAttempt(clientIp, false);
         auditLog("login_failure", username, clientIp, { method: "password" });
-        return reply.status(401).send({ error: "Invalid username or password" });
+        return reply
+          .status(401)
+          .send({ error: "Invalid username or password" });
       }
 
       recordAttempt(clientIp, true);
@@ -140,7 +142,10 @@ export async function buildApp() {
       );
 
       setCookie(reply, SESSION_COOKIE, session.id, SESSION_MAX_AGE_SEC);
-      auditLog("login_success", username, clientIp, { method: "password", roles: mappedRoles });
+      auditLog("login_success", username, clientIp, {
+        method: "password",
+        roles: mappedRoles,
+      });
 
       return reply.send({
         username,
@@ -156,10 +161,14 @@ export async function buildApp() {
   // ---------------------------------------------------------------
   app.post("/webui/api/auth/cert-login", async (request, reply) => {
     const certPem = request.headers["x-ssl-client-cert"] as string | undefined;
-    const verifyStatus = request.headers["x-ssl-client-verify"] as string | undefined;
+    const verifyStatus = request.headers["x-ssl-client-verify"] as
+      | string
+      | undefined;
 
     if (!certPem || verifyStatus === "NONE") {
-      return reply.status(401).send({ error: "No client certificate presented" });
+      return reply
+        .status(401)
+        .send({ error: "No client certificate presented" });
     }
 
     const decodedPem = decodeURIComponent(certPem);
@@ -167,7 +176,9 @@ export async function buildApp() {
     const dogtagResult = await loginToDogtagWithCert(decodedPem);
     if (!dogtagResult) {
       auditLog("cert_login_failure", "unknown", request.ip);
-      return reply.status(401).send({ error: "Certificate authentication failed" });
+      return reply
+        .status(401)
+        .send({ error: "Certificate authentication failed" });
     }
 
     const mappedRoles = mapDogtagRoles(dogtagResult.account.Roles || []);
@@ -185,7 +196,10 @@ export async function buildApp() {
     );
 
     setCookie(reply, SESSION_COOKIE, session.id, SESSION_MAX_AGE_SEC);
-    auditLog("cert_login_success", session.username, request.ip, { method: "certificate", roles: session.roles });
+    auditLog("cert_login_success", session.username, request.ip, {
+      method: "certificate",
+      roles: session.roles,
+    });
 
     return reply.send({
       username: session.username,
@@ -200,8 +214,12 @@ export async function buildApp() {
   // ---------------------------------------------------------------
   app.get("/webui/api/auth/cert-info", async (request, reply) => {
     const certPem = request.headers["x-ssl-client-cert"] as string | undefined;
-    const verifyStatus = request.headers["x-ssl-client-verify"] as string | undefined;
-    const subjectDn = request.headers["x-ssl-client-s-dn"] as string | undefined;
+    const verifyStatus = request.headers["x-ssl-client-verify"] as
+      | string
+      | undefined;
+    const subjectDn = request.headers["x-ssl-client-s-dn"] as
+      | string
+      | undefined;
 
     if (!certPem || verifyStatus === "NONE") {
       return reply.send({ hasCert: false });

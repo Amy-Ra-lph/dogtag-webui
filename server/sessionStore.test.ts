@@ -43,12 +43,22 @@ describe("createSession", () => {
   });
 
   it("stores Dogtag cookies", () => {
-    const session = mod.createSession(testUser, "password", "JSESSIONID=abc", null);
+    const session = mod.createSession(
+      testUser,
+      "password",
+      "JSESSIONID=abc",
+      null,
+    );
     expect(session.dogtagCookies).toBe("JSESSIONID=abc");
   });
 
   it("stores client cert PEM", () => {
-    const session = mod.createSession(testUser, "certificate", null, "-----BEGIN CERT-----");
+    const session = mod.createSession(
+      testUser,
+      "certificate",
+      null,
+      "-----BEGIN CERT-----",
+    );
     expect(session.clientCertPem).toBe("-----BEGIN CERT-----");
   });
 

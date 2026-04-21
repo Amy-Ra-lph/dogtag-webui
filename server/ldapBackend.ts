@@ -16,9 +16,9 @@ export interface LdapConfig {
 }
 
 const DOGTAG_GROUP_ROLE_MAP: Record<string, string> = {
-  "Administrators": "administrator",
+  Administrators: "administrator",
   "Certificate Manager Agents": "agent",
-  "Auditors": "auditor",
+  Auditors: "auditor",
   "Enterprise CA Administrators": "administrator",
   "Enterprise KRA Administrators": "administrator",
   "Enterprise OCSP Administrators": "administrator",
@@ -56,7 +56,6 @@ export function createLdapBackend(config: LdapConfig): AuthBackend {
         }
 
         // Step 1: Find the user's DN
-        let userDn: string;
         let fullName = username;
         let email = "";
 
@@ -73,7 +72,7 @@ export function createLdapBackend(config: LdapConfig): AuthBackend {
         if (searchEntries.length === 0) return null;
 
         const userEntry = searchEntries[0];
-        userDn = userEntry.dn;
+        const userDn = userEntry.dn;
         fullName = String(userEntry.cn ?? username);
         email = String(userEntry.mail ?? "");
 
@@ -102,14 +101,11 @@ export function createLdapBackend(config: LdapConfig): AuthBackend {
           config.bindDn ? (config.bindPassword ?? password) : password,
         );
 
-        const { searchEntries: groups } = await client.search(
-          groupSearchBase,
-          {
-            scope: "one",
-            filter: `(&(objectClass=groupOfUniqueNames)(uniqueMember=${escapeLdapFilter(userDn)}))`,
-            attributes: ["cn"],
-          },
-        );
+        const { searchEntries: groups } = await client.search(groupSearchBase, {
+          scope: "one",
+          filter: `(&(objectClass=groupOfUniqueNames)(uniqueMember=${escapeLdapFilter(userDn)}))`,
+          attributes: ["cn"],
+        });
 
         const roles: string[] = [];
         for (const group of groups) {
@@ -133,7 +129,7 @@ export function createLdapBackend(config: LdapConfig): AuthBackend {
 }
 
 function escapeLdapFilter(value: string): string {
-  return value.replace(/[\\*()\/\0]/g, (ch) => {
+  return value.replace(/[\\*()/\0]/g, (ch) => {
     return "\\" + ch.charCodeAt(0).toString(16).padStart(2, "0");
   });
 }

@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import https from "node:https";
 
-const rejectUnauthorized =
-  process.env.CA_TLS_REJECT_UNAUTHORIZED === "true";
+const rejectUnauthorized = process.env.CA_TLS_REJECT_UNAUTHORIZED === "true";
 const caBundlePath = process.env.CA_BUNDLE;
 
 let ca: Buffer | undefined;

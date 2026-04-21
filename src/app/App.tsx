@@ -31,7 +31,7 @@ import { hasRole, ROLE_ADMIN, ROLE_AGENT, ROLE_AUDITOR } from "src/auth/roles";
 const App: React.FC = () => {
   const pageId = "primary-app-container";
   const dispatch = useAppDispatch();
-  const { user, checked } = useAppSelector((s) => s.auth);
+  const { user } = useAppSelector((s) => s.auth);
   const location = useLocation();
   const isLoginPage = location.pathname === "/login";
 

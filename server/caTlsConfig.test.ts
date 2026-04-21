@@ -39,11 +39,18 @@ describe("caTlsConfig", () => {
 
     beforeEach(() => {
       tmpFile = path.join(os.tmpdir(), `ca-test-${Date.now()}.pem`);
-      fs.writeFileSync(tmpFile, "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n");
+      fs.writeFileSync(
+        tmpFile,
+        "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n",
+      );
     });
 
     afterEach(() => {
-      try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(tmpFile);
+      } catch {
+        /* ignore */
+      }
     });
 
     it("reads CA bundle from file when CA_BUNDLE is set", async () => {
@@ -60,7 +67,9 @@ describe("caTlsConfig", () => {
     }) as never);
 
     process.env.CA_BUNDLE = "/nonexistent/path/to/ca.pem";
-    await expect(import("./caTlsConfig")).rejects.toThrow("process.exit called");
+    await expect(import("./caTlsConfig")).rejects.toThrow(
+      "process.exit called",
+    );
     expect(exitSpy).toHaveBeenCalledWith(1);
     exitSpy.mockRestore();
   });
