@@ -6,11 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isRateLimited, recordAttempt } from "./authMiddleware.js";
 import { createSession, getSession, deleteSession } from "./sessionStore.js";
-import {
-  loginToDogtag,
-  loginToDogtagWithCert,
-  logoutFromDogtag,
-} from "./dogtagAuth.js";
+import { loginToDogtag, logoutFromDogtag } from "./dogtagAuth.js";
+import { parseCertIdentity } from "./certIdentity.js";
 import { caProxyHandler } from "./caProxy.js";
 import { createLdapBackend } from "./ldapBackend.js";
 import { auditLog } from "./auditLog.js";
@@ -171,27 +168,70 @@ export async function buildApp() {
         .send({ error: "No client certificate presented" });
     }
 
-    const decodedPem = decodeURIComponent(certPem);
-
-    const dogtagResult = await loginToDogtagWithCert(decodedPem);
-    if (!dogtagResult) {
-      auditLog("cert_login_failure", "unknown", request.ip);
+    if (verifyStatus !== "SUCCESS") {
+      auditLog("cert_login_failure", "unknown", request.ip, {
+        reason: `verify_status=${verifyStatus}`,
+      });
       return reply
         .status(401)
-        .send({ error: "Certificate authentication failed" });
+        .send({ error: "Client certificate verification failed" });
     }
 
-    const mappedRoles = mapDogtagRoles(dogtagResult.account.Roles || []);
+    const decodedPem = decodeURIComponent(certPem);
+
+    // Extract identity from the nginx-verified cert (we don't have the
+    // private key — nginx terminated TLS — so we can't replay mTLS to Dogtag)
+    const identity = parseCertIdentity(decodedPem);
+    if (!identity) {
+      auditLog("cert_login_failure", "unknown", request.ip, {
+        reason: "unparseable_cert",
+      });
+      return reply
+        .status(401)
+        .send({ error: "Could not extract identity from certificate" });
+    }
+
+    const username = identity.uid || identity.cn;
+    let roles: string[] = [];
+    let fullName = identity.cn || username;
+    let email = identity.email;
+    let dogtagCookies: string | null = null;
+
+    // Strategy 1: Try Dogtag admin lookup — authenticate as admin, then
+    // check if this cert user has a Dogtag account with roles
+    const dogtagResult = await loginToDogtag(username, "");
+    if (dogtagResult) {
+      roles = dogtagResult.account.Roles || [];
+      fullName = dogtagResult.account.FullName || fullName;
+      email = dogtagResult.account.Email || email;
+      dogtagCookies = dogtagResult.cookies;
+    }
+
+    // Strategy 2: Fall back to LDAP for role lookup
+    if (roles.length === 0 && useLdapFallback && ldapBackend) {
+      const ldapUser = await ldapBackend.lookupByUid?.(username);
+      if (ldapUser) {
+        roles = ldapUser.roles;
+        fullName = ldapUser.fullName || fullName;
+        email = ldapUser.email || email;
+      }
+    }
+
+    const mappedRoles = mapDogtagRoles(roles);
+    if (mappedRoles.length === 0) {
+      auditLog("cert_login_failure", username, request.ip, {
+        reason: "no_roles",
+        issuerDN: identity.issuerDN,
+      });
+      return reply.status(401).send({
+        error: "Certificate is valid but no authorized roles found",
+      });
+    }
 
     const session = createSession(
-      {
-        username: dogtagResult.account.id,
-        fullName: dogtagResult.account.FullName || dogtagResult.account.id,
-        email: dogtagResult.account.Email || "",
-        roles: mappedRoles,
-      },
+      { username, fullName, email, roles: mappedRoles },
       "certificate",
-      dogtagResult.cookies,
+      dogtagCookies,
       decodedPem,
     );
 
@@ -199,6 +239,7 @@ export async function buildApp() {
     auditLog("cert_login_success", session.username, request.ip, {
       method: "certificate",
       roles: session.roles,
+      issuerDN: identity.issuerDN,
     });
 
     return reply.send({

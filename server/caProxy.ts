@@ -86,10 +86,7 @@ export async function caProxyHandler(
   // Re-validate roles if stale
   const now = Date.now();
   if (session.dogtagCookies && now - session.lastRoleCheck > ROLE_RECHECK_MS) {
-    const refreshed = await checkDogtagSession(
-      session.dogtagCookies,
-      session.clientCertPem,
-    );
+    const refreshed = await checkDogtagSession(session.dogtagCookies);
     if (!refreshed) {
       deleteSession(sessionId);
       return reply.status(401).send({ error: "Session expired" });
@@ -133,9 +130,10 @@ export async function caProxyHandler(
     ...caTlsOptions,
   };
 
-  if (session.authMethod === "certificate" && session.clientCertPem) {
-    agentOptions.cert = session.clientCertPem;
-  }
+  // Note: we intentionally do NOT set agentOptions.cert here for cert-auth
+  // sessions. nginx terminates TLS — the backend only has the client cert PEM,
+  // not the private key — so mTLS replay to Dogtag is impossible. Cert-auth
+  // sessions use Dogtag cookies (from admin lookup) for proxying.
 
   const headers: Record<string, string> = {
     Accept: "application/json",

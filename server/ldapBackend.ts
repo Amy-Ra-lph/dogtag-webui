@@ -42,7 +42,65 @@ export function createLdapBackend(config: LdapConfig): AuthBackend {
     config.groupSearchBase ?? `ou=groups,${config.baseDn}`;
   const tlsOptions = buildTlsOptions(config);
 
+  async function findUserAndRoles(
+    username: string,
+  ): Promise<{ fullName: string; email: string; roles: string[] } | null> {
+    if (!config.bindDn || !config.bindPassword) return null;
+
+    const client = new Client({
+      url: config.url,
+      tlsOptions,
+      strictDN: true,
+    });
+
+    try {
+      if (config.startTls) {
+        await client.startTLS(tlsOptions);
+      }
+
+      await client.bind(config.bindDn, config.bindPassword);
+
+      const { searchEntries } = await client.search(userSearchBase, {
+        scope: "one",
+        filter: `(uid=${escapeLdapFilter(username)})`,
+        attributes: ["dn", "cn", "mail", "sn", "givenName"],
+      });
+
+      if (searchEntries.length === 0) return null;
+
+      const userEntry = searchEntries[0];
+      const userDn = userEntry.dn;
+      const fullName = String(userEntry.cn ?? username);
+      const email = String(userEntry.mail ?? "");
+
+      const { searchEntries: groups } = await client.search(groupSearchBase, {
+        scope: "one",
+        filter: `(&(objectClass=groupOfUniqueNames)(uniqueMember=${escapeLdapFilter(userDn)}))`,
+        attributes: ["cn"],
+      });
+
+      const roles: string[] = [];
+      for (const group of groups) {
+        const cn = String(group.cn ?? "");
+        const role = DOGTAG_GROUP_ROLE_MAP[cn];
+        if (role && !roles.includes(role)) {
+          roles.push(role);
+        }
+      }
+
+      if (roles.length === 0) return null;
+
+      return { fullName, email, roles };
+    } catch {
+      return null;
+    } finally {
+      await client.unbind().catch(() => {});
+    }
+  }
+
   return {
+    lookupByUid: findUserAndRoles,
+
     async validate(username, password) {
       const client = new Client({
         url: config.url,

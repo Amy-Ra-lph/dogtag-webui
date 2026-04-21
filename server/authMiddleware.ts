@@ -10,6 +10,9 @@ export interface AuthBackend {
     username: string,
     password: string,
   ): Promise<{ fullName: string; email: string; roles: string[] } | null>;
+  lookupByUid?(
+    uid: string,
+  ): Promise<{ fullName: string; email: string; roles: string[] } | null>;
 }
 
 const demoUsers: Record<

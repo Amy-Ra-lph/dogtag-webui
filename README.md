@@ -114,13 +114,15 @@ podman run -d -p 8080:8080 -p 8443:8443 \
   -v /path/to/tls.key:/etc/nginx/certs/tls.key:ro,z \
   dogtag-webui
 
-# With TLS + client CA verification (validates client certs at nginx)
+# With TLS + client CA verification (validates client certs at nginx).
+# CLIENT_CA_CERT accepts a PEM bundle — concatenate multiple CA certs
+# to trust clients from different root CAs.
 podman run -d -p 8080:8080 -p 8443:8443 \
   -e CA_TARGET_URL=https://ca.example.com:8443 \
-  -e CLIENT_CA_CERT=/etc/nginx/certs/client-ca.pem \
+  -e CLIENT_CA_CERT=/etc/nginx/certs/client-ca-bundle.pem \
   -v /path/to/tls.crt:/etc/nginx/certs/tls.crt:ro,z \
   -v /path/to/tls.key:/etc/nginx/certs/tls.key:ro,z \
-  -v /path/to/client-ca.pem:/etc/nginx/certs/client-ca.pem:ro,z \
+  -v /path/to/client-ca-bundle.pem:/etc/nginx/certs/client-ca-bundle.pem:ro,z \
   dogtag-webui
 
 # With Rekor transparency log (add to any of the above)
@@ -163,7 +165,7 @@ Full provisioning playbooks for 389 DS + Dogtag CA and the WebUI container are i
 | `BACKEND_PORT` | `3000` | Fastify backend listen port |
 | `CA_TLS_REJECT_UNAUTHORIZED` | `false` | Set `true` for production (validates CA's TLS cert) |
 | `CA_BUNDLE` | *(optional)* | Path to CA chain PEM for verifying Dogtag's TLS cert |
-| `CLIENT_CA_CERT` | *(optional)* | Client CA cert for nginx mTLS verification |
+| `CLIENT_CA_CERT` | *(optional)* | PEM bundle of CA certs trusted for client authentication (supports multiple CAs) |
 | `LDAP_URL` | *(unset = Dogtag-only auth)* | LDAP server URL for fallback auth |
 | `LDAP_BASE_DN` | `o=pki-tomcat-CA` | LDAP base DN |
 | `LDAP_BIND_DN` | *(optional)* | DN for LDAP search bind |
