@@ -134,7 +134,7 @@ Full provisioning playbooks for 389 DS + Dogtag CA and the WebUI container are i
 | `npm run build:server` | Bundle Fastify backend with esbuild |
 | `npm run start:server` | Run production Fastify backend |
 | `npm run lint` | Run ESLint |
-| `npm test` | Run all tests (88 tests across server + client) |
+| `npm test` | Run all tests (128 tests across server + client) |
 
 ## Environment Variables
 
