@@ -99,24 +99,40 @@ CA_TARGET_URL=https://your-ca:8443 npm run dev:server
 # Build
 podman build -t dogtag-webui .
 
-# Run (no agent cert needed — users authenticate with their own credentials)
+# HTTP only (password login only — no mTLS without TLS)
 podman run -d -p 8080:8080 \
   -e CA_TARGET_URL=https://ca.example.com:8443 \
   dogtag-webui
 
-# With TLS (mount server cert for HTTPS + optional mTLS)
+# With TLS (password login + client certificate mTLS)
+# Mount the server's TLS cert/key — these are NOT agent certs.
+# nginx terminates TLS on 8443 and handles mTLS client cert negotiation.
+# HTTP on 8080 redirects to HTTPS.
 podman run -d -p 8080:8080 -p 8443:8443 \
   -e CA_TARGET_URL=https://ca.example.com:8443 \
   -v /path/to/tls.crt:/etc/nginx/certs/tls.crt:ro,z \
   -v /path/to/tls.key:/etc/nginx/certs/tls.key:ro,z \
   dogtag-webui
 
-# With Rekor transparency log
-podman run -d -p 8080:8080 \
+# With TLS + client CA verification (validates client certs at nginx)
+podman run -d -p 8080:8080 -p 8443:8443 \
+  -e CA_TARGET_URL=https://ca.example.com:8443 \
+  -e CLIENT_CA_CERT=/etc/nginx/certs/client-ca.pem \
+  -v /path/to/tls.crt:/etc/nginx/certs/tls.crt:ro,z \
+  -v /path/to/tls.key:/etc/nginx/certs/tls.key:ro,z \
+  -v /path/to/client-ca.pem:/etc/nginx/certs/client-ca.pem:ro,z \
+  dogtag-webui
+
+# With Rekor transparency log (add to any of the above)
+podman run -d -p 8080:8080 -p 8443:8443 \
   -e CA_TARGET_URL=https://ca.example.com:8443 \
   -e REKOR_URL=http://rekor.example.com:3000 \
+  -v /path/to/tls.crt:/etc/nginx/certs/tls.crt:ro,z \
+  -v /path/to/tls.key:/etc/nginx/certs/tls.key:ro,z \
   dogtag-webui
 ```
+
+> **Note:** Client certificate authentication (mTLS) requires TLS. The HTTP-only mode (port 8080, no TLS certs mounted) supports password login only. To enable mTLS, mount server TLS certs and expose port 8443.
 
 The container uses a multi-stage build: UBI 10 with Node.js 24 for the build stage, UBI 10 with nginx + Node.js 24 for runtime. It runs as non-root (UID 1001). The entrypoint starts the Fastify backend, waits for its health check, then starts nginx as PID 1.
 
