@@ -90,3 +90,11 @@ export function extractCN(dn: string): string {
   const match = dn.match(/CN=([^,]+)/);
   return match ? match[1] : dn;
 }
+
+export function extractFingerprint(prettyPrint: string): string | null {
+  const match = prettyPrint.match(
+    /Fingerprint\s*\(SHA-?256\):\s*([\s0-9A-Fa-f:]+)/,
+  );
+  if (!match) return null;
+  return match[1].replace(/[:\s]/g, "").toLowerCase();
+}

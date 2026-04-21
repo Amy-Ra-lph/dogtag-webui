@@ -6,6 +6,7 @@ import {
   hasCodeSigningEKU,
   extractSignerIdentity,
   extractCN,
+  extractFingerprint,
 } from "./certUtils";
 
 const SAMPLE_PRETTY_PRINT = `
@@ -232,5 +233,30 @@ describe("extractCN", () => {
 
   it("returns full string when no CN found", () => {
     expect(extractCN("OU=pki,O=example.com")).toBe("OU=pki,O=example.com");
+  });
+});
+
+describe("extractFingerprint", () => {
+  it("extracts SHA-256 fingerprint from PrettyPrint", () => {
+    const text = `
+            Fingerprint (SHA-256):
+                AB:CD:12:34:EF:56:78:90:AB:CD:12:34:EF:56:78:90:
+                AB:CD:12:34:EF:56:78:90:AB:CD:12:34:EF:56:78:90
+`;
+    expect(extractFingerprint(text)).toBe(
+      "abcd1234ef567890abcd1234ef567890abcd1234ef567890abcd1234ef567890",
+    );
+  });
+
+  it("handles single-line fingerprint", () => {
+    const text =
+      "Fingerprint (SHA256): AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99";
+    expect(extractFingerprint(text)).toBe(
+      "aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
+    );
+  });
+
+  it("returns null when no fingerprint found", () => {
+    expect(extractFingerprint("Version: v3\nSerial: 0x1")).toBeNull();
   });
 });

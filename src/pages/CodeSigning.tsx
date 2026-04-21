@@ -19,11 +19,17 @@ import { Table, Thead, Tr, Th, Tbody, Td } from "@patternfly/react-table";
 import { useNavigate } from "react-router";
 import BreadcrumbLayout from "src/components/BreadcrumbLayout";
 import ValidityBar from "src/components/ValidityBar";
+import RekorVerificationBadge from "src/components/RekorVerificationBadge";
 import StatusLabel from "src/components/StatusLabel";
 import ErrorBanner from "src/components/ErrorBanner";
 import { useGetCertificatesQuery, dogtagApi } from "src/services/dogtagApi";
+import { rekorApi } from "src/services/rekorApi";
 import { useAppDispatch } from "src/store/store";
-import { hasCodeSigningEKU, extractSignerIdentity } from "src/utils/certUtils";
+import {
+  hasCodeSigningEKU,
+  extractSignerIdentity,
+  extractFingerprint,
+} from "src/utils/certUtils";
 import { spireSigstoreConfig } from "src/config/spireConfig";
 import type { CodeSigningRecord } from "src/types/spire";
 
@@ -55,6 +61,11 @@ function timeRangeMs(range: TimeRange): number {
   }
 }
 
+interface RekorMatch {
+  logIndex: number;
+  uuid: string;
+}
+
 const CodeSigning: React.FC = () => {
   React.useEffect(() => {
     document.title = "Dogtag PKI - Code Signing Activity";
@@ -67,8 +78,16 @@ const CodeSigning: React.FC = () => {
   const [timeRange, setTimeRange] = React.useState<TimeRange>("7d");
 
   const [records, setRecords] = React.useState<CodeSigningRecord[]>([]);
+  const [fingerprints, setFingerprints] = React.useState<
+    Map<string, string | null>
+  >(new Map());
+  const [rekorMatches, setRekorMatches] = React.useState<
+    Map<string, RekorMatch>
+  >(new Map());
   const [scanning, setScanning] = React.useState(false);
   const [scanned, setScanned] = React.useState(false);
+
+  const rekorEnabled = !!spireSigstoreConfig.rekorUrl;
 
   const { data, isLoading, error } = useGetCertificatesQuery({
     start: 0,
@@ -95,13 +114,14 @@ const CodeSigning: React.FC = () => {
     ).then((results) => {
       if (cancelled) return;
       const csRecords: CodeSigningRecord[] = [];
+      const fps = new Map<string, string | null>();
       for (const { cert, prettyPrint } of results) {
-        const isCodeSigning =
+        const isCS =
           hasCodeSigningEKU(prettyPrint) ||
           (spireSigstoreConfig.fulcioIssuerDN &&
             cert.IssuerDN.includes(spireSigstoreConfig.fulcioIssuerDN));
 
-        if (!isCodeSigning) continue;
+        if (!isCS) continue;
 
         const windowMs = cert.NotValidAfter - cert.NotValidBefore;
         csRecords.push({
@@ -115,9 +135,11 @@ const CodeSigning: React.FC = () => {
           validityWindowMinutes: Math.round(windowMs / 60000),
           status: cert.Status,
         });
+        fps.set(cert.id, extractFingerprint(prettyPrint));
       }
       csRecords.sort((a, b) => b.issuedOn - a.issuedOn);
       setRecords(csRecords);
+      setFingerprints(fps);
       setScanning(false);
       setScanned(true);
     });
@@ -126,6 +148,50 @@ const CodeSigning: React.FC = () => {
       cancelled = true;
     };
   }, [certs, dispatch, scanned]);
+
+  React.useEffect(() => {
+    if (!rekorEnabled || !scanned || fingerprints.size === 0) return;
+
+    let cancelled = false;
+
+    const lookups = Array.from(fingerprints.entries()).filter(
+      ([, fp]) => fp !== null,
+    ) as [string, string][];
+
+    Promise.all(
+      lookups.map(([certId, fp]) =>
+        dispatch(rekorApi.endpoints.searchByHash.initiate(fp))
+          .unwrap()
+          .then((uuids) => ({ certId, uuid: uuids[0] ?? null }))
+          .catch(() => ({ certId, uuid: null })),
+      ),
+    ).then(async (searchResults) => {
+      if (cancelled) return;
+      const matches = new Map<string, RekorMatch>();
+      for (const { certId, uuid } of searchResults) {
+        if (!uuid) continue;
+        try {
+          const entry = await dispatch(
+            rekorApi.endpoints.getEntry.initiate(uuid),
+          ).unwrap();
+          const entryData = Object.values(entry)[0];
+          if (entryData) {
+            matches.set(certId, {
+              logIndex: entryData.logIndex,
+              uuid,
+            });
+          }
+        } catch {
+          // Rekor lookup failed for this entry
+        }
+      }
+      setRekorMatches(matches);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rekorEnabled, scanned, fingerprints, dispatch]);
 
   const filtered = records.filter((r) => {
     if (timeRange !== "all") {
@@ -144,6 +210,7 @@ const CodeSigning: React.FC = () => {
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
   const loading = isLoading || scanning;
+  const colCount = rekorEnabled ? 9 : 8;
 
   return (
     <>
@@ -212,13 +279,14 @@ const CodeSigning: React.FC = () => {
                 <Th>Window</Th>
                 <Th>Validity</Th>
                 <Th>Status</Th>
+                {rekorEnabled && <Th>Rekor</Th>}
                 <Th />
               </Tr>
             </Thead>
             <Tbody>
               {pageItems.length === 0 ? (
                 <Tr>
-                  <Td colSpan={8}>
+                  <Td colSpan={colCount}>
                     <Content component="small">
                       {scanned
                         ? "No code-signing certificates found."
@@ -227,41 +295,58 @@ const CodeSigning: React.FC = () => {
                   </Td>
                 </Tr>
               ) : (
-                pageItems.map((r) => (
-                  <Tr key={r.certId}>
-                    <Td>
-                      <Label color="purple" isCompact>
-                        {r.signerIdentity}
-                      </Label>
-                    </Td>
-                    <Td>{r.serialNumber}</Td>
-                    <Td>{formatDate(r.issuedOn)}</Td>
-                    <Td>{formatDate(r.notValidAfter)}</Td>
-                    <Td>{r.validityWindowMinutes} min</Td>
-                    <Td>
-                      <ValidityBar
-                        notBefore={r.notValidBefore}
-                        notAfter={r.notValidAfter}
-                      />
-                    </Td>
-                    <Td>
-                      <StatusLabel status={r.status} />
-                    </Td>
-                    <Td>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() =>
-                          navigate(
-                            `/certificates/${encodeURIComponent(r.certId)}`,
-                          )
-                        }
-                      >
-                        View Cert
-                      </Button>
-                    </Td>
-                  </Tr>
-                ))
+                pageItems.map((r) => {
+                  const rekor = rekorMatches.get(r.certId);
+                  return (
+                    <Tr key={r.certId}>
+                      <Td>
+                        <Label color="purple" isCompact>
+                          {r.signerIdentity}
+                        </Label>
+                      </Td>
+                      <Td>{r.serialNumber}</Td>
+                      <Td>{formatDate(r.issuedOn)}</Td>
+                      <Td>{formatDate(r.notValidAfter)}</Td>
+                      <Td>{r.validityWindowMinutes} min</Td>
+                      <Td>
+                        <ValidityBar
+                          notBefore={r.notValidBefore}
+                          notAfter={r.notValidAfter}
+                        />
+                      </Td>
+                      <Td>
+                        <StatusLabel status={r.status} />
+                      </Td>
+                      {rekorEnabled && (
+                        <Td>
+                          {rekor ? (
+                            <RekorVerificationBadge
+                              logIndex={rekor.logIndex}
+                              uuid={rekor.uuid}
+                            />
+                          ) : (
+                            <Label color="grey" isCompact>
+                              Not found
+                            </Label>
+                          )}
+                        </Td>
+                      )}
+                      <Td>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() =>
+                            navigate(
+                              `/certificates/${encodeURIComponent(r.certId)}`,
+                            )
+                          }
+                        >
+                          View Cert
+                        </Button>
+                      </Td>
+                    </Tr>
+                  );
+                })
               )}
             </Tbody>
           </Table>

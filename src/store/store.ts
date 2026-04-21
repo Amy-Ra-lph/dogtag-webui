@@ -2,6 +2,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 import { dogtagApi } from "../services/dogtagApi";
+import { rekorApi } from "../services/rekorApi";
 import authReducer from "./authSlice";
 
 export const setupStore = () => {
@@ -9,9 +10,8 @@ export const setupStore = () => {
     reducer: {
       auth: authReducer,
       [dogtagApi.reducerPath]: dogtagApi.reducer,
+      [rekorApi.reducerPath]: rekorApi.reducer,
     },
-    // Adding the api middleware enables caching, invalidation, polling,
-    // and other useful features of `rtk-query`.
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
         serializableCheck: {
@@ -19,9 +19,11 @@ export const setupStore = () => {
             "dogtagApi/executeQuery/fulfilled",
             "dogtagApi/executeMutation/fulfilled",
           ],
-          ignoredPaths: ["dogtagApi"],
+          ignoredPaths: ["dogtagApi", "rekorApi"],
         },
-      }).concat(dogtagApi.middleware),
+      })
+        .concat(dogtagApi.middleware)
+        .concat(rekorApi.middleware),
   });
 
   // Optional, but required for refetchOnFocus/refetchOnReconnect behaviors
