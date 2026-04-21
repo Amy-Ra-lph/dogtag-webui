@@ -104,6 +104,32 @@ export const navigationRoutes: NavSection[] = [
     ],
   },
   {
+    label: "Workload Identity",
+    items: [
+      {
+        label: "Workload Identities",
+        group: "workload-identities",
+        path: "/workload-identities",
+        title: `${BASE_TITLE} - Workload Identities`,
+        requiredRoles: [ROLE_ADMIN, ROLE_AGENT],
+      },
+      {
+        label: "Code Signing",
+        group: "code-signing",
+        path: "/code-signing",
+        title: `${BASE_TITLE} - Code Signing Activity`,
+        requiredRoles: [ROLE_ADMIN, ROLE_AUDITOR],
+      },
+      {
+        label: "Trust Chain",
+        group: "trust-chain",
+        path: "/trust-chain",
+        title: `${BASE_TITLE} - Trust Chain`,
+        requiredRoles: [ROLE_ADMIN],
+      },
+    ],
+  },
+  {
     label: "Compliance",
     items: [
       {

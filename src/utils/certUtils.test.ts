@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { extractSANs } from "./certUtils";
+import {
+  extractSANs,
+  extractURISANs,
+  parseSpiffeId,
+  hasCodeSigningEKU,
+  extractSignerIdentity,
+  extractCN,
+} from "./certUtils";
 
 const SAMPLE_PRETTY_PRINT = `
         Identifier: Certificate Authority - Data
@@ -98,5 +105,132 @@ describe("extractSANs", () => {
       "api.example.com",
       "10.0.0.2",
     ]);
+  });
+});
+
+describe("extractURISANs", () => {
+  it("extracts URI SANs from PrettyPrint", () => {
+    const text = `
+            Identifier: Subject Alternative Name - Extension
+                URIName: spiffe://test.example.com/workload/web-server
+                URIName: spiffe://test.example.com/workload/api
+            Identifier: Authority Key Identifier - Extension
+`;
+    const uris = extractURISANs(text);
+    expect(uris).toEqual([
+      "spiffe://test.example.com/workload/web-server",
+      "spiffe://test.example.com/workload/api",
+    ]);
+  });
+
+  it("returns empty array when no URI SANs exist", () => {
+    const text = `
+            Identifier: Subject Alternative Name - Extension
+                DNSName: server.example.com
+            Identifier: Authority Key Identifier - Extension
+`;
+    expect(extractURISANs(text)).toEqual([]);
+  });
+
+  it("returns empty for empty string", () => {
+    expect(extractURISANs("")).toEqual([]);
+  });
+
+  it("stops at next Identifier section", () => {
+    const text = `
+            Identifier: Subject Alternative Name - Extension
+                URIName: spiffe://domain/path
+            Identifier: Key Usage - Extension
+                URIName: not-a-san
+`;
+    expect(extractURISANs(text)).toEqual(["spiffe://domain/path"]);
+  });
+});
+
+describe("parseSpiffeId", () => {
+  it("parses a valid SPIFFE ID", () => {
+    const result = parseSpiffeId(
+      "spiffe://test.example.com/workload/web-server",
+    );
+    expect(result).toEqual({
+      raw: "spiffe://test.example.com/workload/web-server",
+      trustDomain: "test.example.com",
+      workloadPath: "/workload/web-server",
+    });
+  });
+
+  it("handles SPIFFE ID with no path", () => {
+    const result = parseSpiffeId("spiffe://trust.domain");
+    expect(result).toEqual({
+      raw: "spiffe://trust.domain",
+      trustDomain: "trust.domain",
+      workloadPath: "/",
+    });
+  });
+
+  it("returns null for non-SPIFFE URIs", () => {
+    expect(parseSpiffeId("https://example.com")).toBeNull();
+    expect(parseSpiffeId("")).toBeNull();
+    expect(parseSpiffeId("spiffe://")).toBeNull();
+  });
+
+  it("handles deep workload paths", () => {
+    const result = parseSpiffeId("spiffe://domain/ns/prod/sa/api-server");
+    expect(result?.workloadPath).toBe("/ns/prod/sa/api-server");
+  });
+});
+
+describe("hasCodeSigningEKU", () => {
+  it("returns true when code signing OID is present", () => {
+    const text = `
+            Identifier: Extended Key Usage - Extension
+                1.3.6.1.5.5.7.3.3 - Code Signing
+            Identifier: Authority Key Identifier - Extension
+`;
+    expect(hasCodeSigningEKU(text)).toBe(true);
+  });
+
+  it("returns false when code signing OID is absent", () => {
+    const text = `
+            Identifier: Extended Key Usage - Extension
+                1.3.6.1.5.5.7.3.1 - Server Authentication
+`;
+    expect(hasCodeSigningEKU(text)).toBe(false);
+  });
+});
+
+describe("extractSignerIdentity", () => {
+  it("extracts email from SAN RFC822Name", () => {
+    const text = `
+            Identifier: Subject Alternative Name - Extension
+                RFC822Name: dev@company.com
+            Identifier: Key Usage - Extension
+`;
+    expect(extractSignerIdentity(text)).toBe("dev@company.com");
+  });
+
+  it("returns null when no RFC822Name exists", () => {
+    const text = `
+            Identifier: Subject Alternative Name - Extension
+                DNSName: server.example.com
+            Identifier: Key Usage - Extension
+`;
+    expect(extractSignerIdentity(text)).toBeNull();
+  });
+
+  it("returns null when no SAN section exists", () => {
+    expect(extractSignerIdentity("Version: v3\nSerial: 0x1")).toBeNull();
+  });
+});
+
+describe("extractCN", () => {
+  it("extracts CN from a full DN", () => {
+    expect(extractCN("CN=Certificate Authority,OU=pki,O=example.com")).toBe(
+      "Certificate Authority",
+    );
+  });
+
+  it("returns full string when no CN found", () => {
+    expect(extractCN("OU=pki,O=example.com")).toBe("OU=pki,O=example.com");
   });
 });

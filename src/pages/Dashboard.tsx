@@ -27,7 +27,15 @@ import {
   useGetCertRequestsQuery,
   useGetProfilesQuery,
   useGetAuthoritiesQuery,
+  dogtagApi,
+  type AuthorityData,
 } from "src/services/dogtagApi";
+import { useAppDispatch } from "src/store/store";
+import {
+  extractURISANs,
+  parseSpiffeId,
+  hasCodeSigningEKU,
+} from "src/utils/certUtils";
 
 function daysUntil(epochMs: number): number {
   return Math.ceil((epochMs - Date.now()) / 86_400_000);
@@ -39,6 +47,7 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const { data: certData, isLoading: certsLoading } = useGetCertificatesQuery({
     start: 0,
     size: 100,
@@ -54,7 +63,43 @@ const Dashboard: React.FC = () => {
   const certs = certData?.entries ?? [];
   const requests = reqData?.entries ?? [];
   const profiles = profileData?.entries ?? [];
-  const authorities = authData?.entries ?? [];
+  const authorities: AuthorityData[] = Array.isArray(authData) ? authData : [];
+
+  const [svidCount, setSvidCount] = React.useState(0);
+  const [codeSignCount, setCodeSignCount] = React.useState(0);
+  const [dashScanned, setDashScanned] = React.useState(false);
+
+  React.useEffect(() => {
+    if (certs.length === 0 || dashScanned) return;
+    let cancelled = false;
+
+    Promise.all(
+      certs.map((c) =>
+        dispatch(dogtagApi.endpoints.getAgentCert.initiate(c.id))
+          .unwrap()
+          .then((d) => ({ cert: c, pp: d.PrettyPrint ?? "" }))
+          .catch(() => ({ cert: c, pp: "" })),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      let svids = 0;
+      let signing = 0;
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      for (const { cert, pp } of results) {
+        if (cert.Status !== "VALID") continue;
+        const uris = extractURISANs(pp);
+        if (uris.some((u) => parseSpiffeId(u) !== null)) svids++;
+        if (hasCodeSigningEKU(pp) && cert.IssuedOn >= oneDayAgo) signing++;
+      }
+      setSvidCount(svids);
+      setCodeSignCount(signing);
+      setDashScanned(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [certs, dispatch, dashScanned]);
 
   const validCerts = certs.filter((c) => c.Status === "VALID");
   const revokedCerts = certs.filter((c) => c.Status === "REVOKED");
@@ -151,6 +196,66 @@ const Dashboard: React.FC = () => {
                     <CardBody>
                       <Content component="h2" className="pf-v6-u-mb-sm">
                         {authorities.length}
+                      </Content>
+                    </CardBody>
+                  </Card>
+                </GalleryItem>
+                <GalleryItem>
+                  <Card
+                    isClickable
+                    onClick={() => navigate("/workload-identities")}
+                  >
+                    <CardTitle>Active SVIDs</CardTitle>
+                    <CardBody>
+                      <Content component="h2" className="pf-v6-u-mb-sm">
+                        {svidCount}
+                      </Content>
+                      <Content component="small">
+                        SPIRE workload identities
+                      </Content>
+                    </CardBody>
+                  </Card>
+                </GalleryItem>
+                <GalleryItem>
+                  <Card isClickable onClick={() => navigate("/code-signing")}>
+                    <CardTitle>Code Signing (24h)</CardTitle>
+                    <CardBody>
+                      <Content component="h2" className="pf-v6-u-mb-sm">
+                        {codeSignCount}
+                      </Content>
+                      <Content component="small">
+                        Fulcio signing certs issued
+                      </Content>
+                    </CardBody>
+                  </Card>
+                </GalleryItem>
+                <GalleryItem>
+                  <Card isClickable onClick={() => navigate("/trust-chain")}>
+                    <CardTitle>Trust Chain</CardTitle>
+                    <CardBody>
+                      <Content component="h2" className="pf-v6-u-mb-sm">
+                        <Label
+                          color={
+                            authorities.length > 0 &&
+                            authorities.every(
+                              (a) => a.enabled && (a.ready ?? true),
+                            )
+                              ? "green"
+                              : "orange"
+                          }
+                          isCompact
+                        >
+                          {authorities.length > 0 &&
+                          authorities.every(
+                            (a) => a.enabled && (a.ready ?? true),
+                          )
+                            ? "Healthy"
+                            : "Attention"}
+                        </Label>
+                      </Content>
+                      <Content component="small">
+                        {authorities.length} CA
+                        {authorities.length !== 1 ? "s" : ""} in hierarchy
                       </Content>
                     </CardBody>
                   </Card>

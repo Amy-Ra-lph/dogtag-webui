@@ -16,6 +16,9 @@ import Users from "src/pages/Users";
 import Groups from "src/pages/Groups";
 import Audit from "src/pages/Audit";
 import CCCompliance from "src/pages/CCCompliance";
+import WorkloadIdentities from "src/pages/WorkloadIdentities";
+import CodeSigning from "src/pages/CodeSigning";
+import TrustChain from "src/pages/TrustChain";
 
 const P: React.FC<{
   children: React.ReactNode;
@@ -121,6 +124,30 @@ const AppRoutes: React.FC = () => {
         element={
           <P roles={[ROLE_ADMIN, ROLE_AUDITOR]}>
             <Audit />
+          </P>
+        }
+      />
+      <Route
+        path="/workload-identities"
+        element={
+          <P roles={[ROLE_ADMIN, ROLE_AGENT]}>
+            <WorkloadIdentities />
+          </P>
+        }
+      />
+      <Route
+        path="/code-signing"
+        element={
+          <P roles={[ROLE_ADMIN, ROLE_AUDITOR]}>
+            <CodeSigning />
+          </P>
+        }
+      />
+      <Route
+        path="/trust-chain"
+        element={
+          <P roles={[ROLE_ADMIN]}>
+            <TrustChain />
           </P>
         }
       />
