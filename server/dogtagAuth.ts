@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import https from "node:https";
 import { URL } from "node:url";
 import { caTlsOptions } from "./caTlsConfig.js";

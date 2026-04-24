@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 Red Hat, Inc.
+
 webui_container_image: "dogtag-webui:latest"
 webui_container_name: "dogtag-webui"
 webui_port: 8080

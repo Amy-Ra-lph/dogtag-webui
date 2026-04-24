@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import https from "node:https";
 import http from "node:http";
 import { URL } from "node:url";

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 Red Hat, Inc.
 ---
 # Deploy WebUI only (assumes Dogtag CA is already running)
 # Usage: ansible-playbook -i inventory/hosts.yml deploy-webui.yml

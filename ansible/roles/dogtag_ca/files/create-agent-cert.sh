@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 Red Hat, Inc.
+
 set -euo pipefail
 
 # Creates a least-privilege agent certificate for the WebUI proxy.

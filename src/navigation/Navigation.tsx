@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import React from "react";
 import { Nav, NavExpandable, NavItem, NavList } from "@patternfly/react-core";
 import { NavLink, useLocation } from "react-router";

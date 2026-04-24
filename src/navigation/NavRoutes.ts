@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import { ROLE_ADMIN, ROLE_AGENT, ROLE_AUDITOR } from "src/auth/roles";
 
 export interface NavRouteItem {

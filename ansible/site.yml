@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 Red Hat, Inc.
 ---
 # Full deployment: Dogtag CA + WebUI
 # Usage: ansible-playbook -i inventory/hosts.yml site.yml

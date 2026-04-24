@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 Red Hat, Inc.
+
 set -e
 
 CONF_TEMPLATE=/etc/nginx/conf.d/default.conf.template

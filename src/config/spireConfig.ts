@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 export interface SpireSigstoreConfig {
   spireApiUrl: string | null;
   rekorUrl: string | null;

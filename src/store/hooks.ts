@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import { TypedUseSelectorHook, useDispatch, useSelector } from "react-redux";
 import type { RootState, AppDispatch } from "./store";
 

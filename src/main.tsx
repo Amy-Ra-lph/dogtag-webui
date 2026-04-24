@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";

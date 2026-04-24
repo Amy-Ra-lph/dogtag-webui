@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import { Client } from "ldapts";
 import fs from "node:fs";
 import type { ConnectionOptions } from "node:tls";

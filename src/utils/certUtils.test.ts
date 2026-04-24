@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import { describe, it, expect } from "vitest";
 import {
   extractSANs,
@@ -204,10 +207,10 @@ describe("extractSignerIdentity", () => {
   it("extracts email from SAN RFC822Name", () => {
     const text = `
             Identifier: Subject Alternative Name - Extension
-                RFC822Name: dev@company.com
+                RFC822Name: dev@example.com
             Identifier: Key Usage - Extension
 `;
-    expect(extractSignerIdentity(text)).toBe("dev@company.com");
+    expect(extractSignerIdentity(text)).toBe("dev@example.com");
   });
 
   it("returns null when no RFC822Name exists", () => {

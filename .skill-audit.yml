@@ -1,0 +1,13 @@
+suppress:
+  - rule: PRI-001
+    path: "package-lock.json"
+    reason: "NPM author metadata"
+  - rule: PRI-001
+    path: "scripts/**"
+    reason: "Test fixture emails using .example TLD"
+  - rule: PRI-001
+    path: "server/ldapBackend.test.ts"
+    reason: "Test fixture emails using .example TLD"
+  - rule: AUTH-004
+    path: "server/authMiddleware.ts"
+    reason: "Intentional demo mode warning to users"

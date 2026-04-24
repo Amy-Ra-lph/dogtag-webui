@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2026 Red Hat, Inc.
+
 # Create test certificates for the SPIRE/Sigstore WebUI demo
 # Run on the PoC system (pki1) as root or with sudo
 

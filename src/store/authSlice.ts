@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (C) 2026 Red Hat, Inc.
+
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { AuthUser } from "src/auth/roles";
 
