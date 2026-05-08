@@ -61,6 +61,7 @@ build:
 container:
   stage: build
   needs: [build]
+  tags: [local]
   image: quay.io/podman/stable:latest
   script:
     - podman build -t dogtag-webui .
