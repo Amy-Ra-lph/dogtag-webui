@@ -63,6 +63,8 @@ container:
   needs: [build]
   tags: [local]
   image: quay.io/podman/stable:latest
+  variables:
+    STORAGE_DRIVER: vfs
   script:
     - podman build -t dogtag-webui .
     - podman save -o image.tar dogtag-webui
